@@ -24,6 +24,12 @@
   --card-bg: #f3ecdb;
   --card-empty-a: #e6e2d4;
   --card-empty-b: #dcd7c6;
+  /* 카드마다 생산 보석 색을 옅게 입혀 한눈에 구분되도록 한다 */
+  --card-tint-white: #f7f3e6;
+  --card-tint-blue: #e2ecfb;
+  --card-tint-green: #e2f3e6;
+  --card-tint-red: #fbe6e3;
+  --card-tint-black: #e6e3db;
   --noble-bg: #efe6d0;
   --modal-bg: #ffffff;
   --modal-shadow: rgba(43, 33, 14, 0.22);
@@ -50,6 +56,11 @@
     --card-bg: #3a3227;
     --card-empty-a: #2a2419;
     --card-empty-b: #221d14;
+    --card-tint-white: #453f2f;
+    --card-tint-blue: #2a3446;
+    --card-tint-green: #2a3f2f;
+    --card-tint-red: #442a28;
+    --card-tint-black: #2c2b2c;
     --noble-bg: #3a3120;
     --modal-bg: #2a2620;
     --modal-shadow: rgba(0, 0, 0, 0.55);
@@ -76,6 +87,11 @@
   --card-bg: #3a3227;
   --card-empty-a: #2a2419;
   --card-empty-b: #221d14;
+  --card-tint-white: #453f2f;
+  --card-tint-blue: #2a3446;
+  --card-tint-green: #2a3f2f;
+  --card-tint-red: #442a28;
+  --card-tint-black: #2c2b2c;
   --noble-bg: #3a3120;
   --modal-bg: #2a2620;
   --modal-shadow: rgba(0, 0, 0, 0.55);
@@ -370,11 +386,11 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .gem-black { background: var(--gem-black); color: #fff; }
 .gem-gold { background: var(--gem-gold); color: #3a2a05; }
 
-.card-tile.gem-border-white { border-color: var(--gem-white-edge); }
-.card-tile.gem-border-blue { border-color: var(--gem-blue); }
-.card-tile.gem-border-green { border-color: var(--gem-green); }
-.card-tile.gem-border-red { border-color: var(--gem-red); }
-.card-tile.gem-border-black { border-color: var(--gem-black-edge); }
+.card-tile.gem-border-white { border-color: var(--gem-white-edge); background: var(--card-tint-white); }
+.card-tile.gem-border-blue { border-color: var(--gem-blue); background: var(--card-tint-blue); }
+.card-tile.gem-border-green { border-color: var(--gem-green); background: var(--card-tint-green); }
+.card-tile.gem-border-red { border-color: var(--gem-red); background: var(--card-tint-red); }
+.card-tile.gem-border-black { border-color: var(--gem-black-edge); background: var(--card-tint-black); }
 
 #bank {
   background: var(--panel);

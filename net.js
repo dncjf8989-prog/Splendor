@@ -8,7 +8,7 @@
 const PEER_ID_PREFIX = 'splendor-lite-';
 
 const NET = {
-  mode: 'local', // 'local' | 'online'
+  mode: 'single', // 'single' | 'online'
   role: null, // 'host' | 'guest'
   roomCode: null,
   seat: null, // 0 또는 1
@@ -250,11 +250,11 @@ function netRetry() {
 
 function netSwitchMode(mode) {
   if (mode === NET.mode) return;
-  if (mode === 'local') {
+  if (window.AI) clearTimeout(AI.timer);
+  if (mode === 'single') {
     if (NET.mode === 'online') netLeaveRoom();
-    NET.mode = 'local';
-    if (!G) newGame();
-    else render();
+    NET.mode = 'single';
+    newGame();
   } else {
     NET.mode = 'online';
     NET.status = 'idle';
@@ -266,14 +266,14 @@ function netSwitchMode(mode) {
 
 // ============ 렌더링 ============
 function updateModeTabs() {
-  const localBtn = document.getElementById('modeLocalBtn');
+  const singleBtn = document.getElementById('modeSingleBtn');
   const onlineBtn = document.getElementById('modeOnlineBtn');
-  if (!localBtn || !onlineBtn) return;
-  localBtn.classList.toggle('active', NET.mode === 'local');
+  if (!singleBtn || !onlineBtn) return;
+  singleBtn.classList.toggle('active', NET.mode === 'single');
   onlineBtn.classList.toggle('active', NET.mode === 'online');
   const gameArea = document.getElementById('gameArea');
   const netPanel = document.getElementById('netPanel');
-  if (NET.mode === 'local') {
+  if (NET.mode === 'single') {
     gameArea.hidden = false;
     netPanel.hidden = true;
   } else {
@@ -307,7 +307,7 @@ function renderNetPanel() {
   if (!netAvailable()) {
     el.innerHTML = `<div class="net-box net-warn">
       이 화면에서는 온라인 대전을 사용할 수 없습니다. (온라인 대전용 스크립트를 불러오지 못했습니다)
-      <br><button data-net-act="toLocal">로컬 플레이로 돌아가기</button>
+      <br><button data-net-act="toSingle">싱글 플레이로 돌아가기</button>
     </div>`;
     return;
   }
@@ -357,7 +357,7 @@ function renderNetPanel() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('modeLocalBtn').addEventListener('click', () => netSwitchMode('local'));
+  document.getElementById('modeSingleBtn').addEventListener('click', () => netSwitchMode('single'));
   document.getElementById('modeOnlineBtn').addEventListener('click', () => netSwitchMode('online'));
 
   document.getElementById('netPanel').addEventListener('click', (e) => {
@@ -371,7 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (act === 'leave') netLeaveRoom();
     if (act === 'retry') netRetry();
-    if (act === 'toLocal') netSwitchMode('local');
+    if (act === 'toSingle') netSwitchMode('single');
   });
 
   document.getElementById('netPanel').addEventListener('keydown', (e) => {

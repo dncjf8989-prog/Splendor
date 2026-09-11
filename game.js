@@ -57,6 +57,10 @@ function newGame() {
     winnerText: '',
   };
 
+  if (window.NET && NET.mode === 'single') {
+    G.players[1].name = 'AI';
+  }
+
   log('새 게임을 시작합니다. 플레이어 1부터 시작합니다.');
   render();
 }
@@ -65,10 +69,16 @@ function currentPlayer() {
   return G.players[G.currentIndex];
 }
 
-// 온라인 대전 중에는 자신의 차례일 때만 행동할 수 있다. (net.js가 window.NET을 채워준다)
+// 온라인 대전 중에는 자신의 차례일 때만, 싱글 플레이 중에는 AI 턴이 아닐 때만
+// (또는 AI가 스스로 행동 중일 때만) 행동할 수 있다. (net.js/ai.js가 window.NET/AI를 채워준다)
 function canAct() {
-  if (!window.NET || NET.mode !== 'online') return true;
-  return NET.seat === G.currentIndex;
+  if (!window.NET) return true;
+  if (NET.mode === 'online') return NET.seat === G.currentIndex;
+  if (NET.mode === 'single') {
+    if (window.AI && AI.acting) return true;
+    return G.currentIndex !== (window.AI ? AI.seat : 1);
+  }
+  return true;
 }
 
 function totalTokens(player) {
@@ -222,9 +232,22 @@ function reserveCard(tierIdx, idx) {
 }
 
 // ============ 턴 종료 처리 (초과 토큰 / 귀족 / 승리 판정) ============
+function isAiPlayer(player) {
+  return !!(window.NET && NET.mode === 'single' && window.AI && player === G.players[AI.seat]);
+}
+
 function resolveActionEnd(player) {
   const total = totalTokens(player);
   if (total > 10) {
+    if (isAiPlayer(player)) {
+      // AI는 모달 없이 스스로 버릴 토큰을 골라 즉시 처리한다.
+      aiChooseDiscards(player, total - 10).forEach((c) => {
+        player.tokens[c]--;
+        G.bank[c]++;
+      });
+      finishTurnFlow(player);
+      return;
+    }
     openDiscardModal(player, total - 10, () => finishTurnFlow(player));
   } else {
     finishTurnFlow(player);
@@ -260,7 +283,7 @@ function checkNoblesAndContinue(player, callback) {
     callback();
     return;
   }
-  if (qualifying.length === 1) {
+  if (qualifying.length === 1 || isAiPlayer(player)) {
     claimNoble(player, qualifying[0]);
     callback();
     return;
@@ -299,10 +322,14 @@ function finishTurnFlow(player) {
   });
 }
 
-// 온라인 대전 중이면 턴이 끝날 때마다 상대방에게 최신 상태를 전송한다.
+// 온라인 대전 중이면 턴이 끝날 때마다 상대방에게 최신 상태를 전송하고,
+// 싱글 플레이 중이면 AI 턴으로 넘어왔는지 확인해 AI를 움직인다.
 function notifyNet() {
   if (window.NET && NET.mode === 'online' && typeof NET.commit === 'function') {
     NET.commit();
+  }
+  if (window.AI && typeof aiScheduleTurn === 'function') {
+    aiScheduleTurn();
   }
 }
 
@@ -372,6 +399,8 @@ function renderBanner() {
   let turnText = `${currentPlayer().name}의 차례입니다. (목표: 15점 이상)`;
   if (window.NET && NET.mode === 'online') {
     turnText = canAct() ? '당신의 차례입니다. (목표: 15점 이상)' : `${currentPlayer().name}(상대방)의 차례를 기다리는 중입니다.`;
+  } else if (window.NET && NET.mode === 'single') {
+    turnText = canAct() ? '당신의 차례입니다. (목표: 15점 이상)' : 'AI가 생각하는 중입니다...';
   }
   el.innerHTML = `<div class="banner">${turnText}</div>`;
 }
