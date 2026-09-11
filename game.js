@@ -336,7 +336,7 @@ function renderCostIcons(cost) {
 
 function renderCardTile(card, opts) {
   // opts: { buyable, affordable, reservable, reserveEnabled, buyAct, reserveAct }
-  const affordHint = opts.affordable ? '' : ' unaffordable';
+  const affordHint = opts.affordable ? ' affordable' : '';
   return `
     <div class="card-tile gem-border-${card.gem}${affordHint}">
       <div class="card-top">
@@ -442,39 +442,41 @@ function renderPending() {
 }
 
 function renderPlayers() {
-  const el = document.getElementById('players');
-  el.innerHTML = G.players
-    .map((p, i) => {
-      const isCurrent = i === G.currentIndex && !G.gameOver;
-      const canActNow = isCurrent && canAct();
-      const tokensHtml = GEMS.concat(['gold'])
-        .map((c) => (p.tokens[c] > 0 ? gemDot(c, p.tokens[c]) : ''))
-        .join('');
-      const bonusHtml = GEMS.map((c) => (p.bonuses[c] > 0 ? gemDot(c, p.bonuses[c]) : '')).join('');
-      const reservedHtml = p.reserved
-        .map((card, idx) => {
-          const afford = canActNow ? affordability(p, card.cost).ok : false;
-          return renderCardTile(card, {
-            buyable: canActNow,
-            reservable: false,
-            affordable: canActNow && afford && G.pending.length === 0 && !G.discardState && !G.nobleChoice,
-            buyAct: `buyReserved:${idx}`,
-          });
-        })
-        .join('');
-      const netTag = window.NET && NET.mode === 'online' && NET.seat === i ? ' <span class="you-tag">나</span>' : '';
-      const noblesHtml = p.nobles.map(() => `<span class="noble-mini">★</span>`).join('');
-      return `
-        <div class="player-panel ${isCurrent ? 'active' : ''}">
-          <h3>${p.name}${netTag} ${isCurrent ? '<span class="turn-tag">현재 턴</span>' : ''}</h3>
-          <div class="player-points">점수: ${p.points}점 ${noblesHtml}</div>
-          <div class="player-row"><span class="row-label">보유 토큰</span>${tokensHtml || '<em>없음</em>'}</div>
-          <div class="player-row"><span class="row-label">카드 보너스</span>${bonusHtml || '<em>없음</em>'}</div>
-          <div class="player-row"><span class="row-label">예약 카드 (${p.reserved.length}/3)</span></div>
-          <div class="reserved-cards">${reservedHtml}</div>
-        </div>`;
+  G.players.forEach((p, i) => {
+    const slot = document.getElementById('playerSlot' + i);
+    if (slot) slot.innerHTML = renderPlayerPanel(p, i);
+  });
+}
+
+function renderPlayerPanel(p, i) {
+  const isCurrent = i === G.currentIndex && !G.gameOver;
+  const canActNow = isCurrent && canAct();
+  const tokensHtml = GEMS.concat(['gold'])
+    .map((c) => (p.tokens[c] > 0 ? gemDot(c, p.tokens[c]) : ''))
+    .join('');
+  const bonusHtml = GEMS.map((c) => (p.bonuses[c] > 0 ? gemDot(c, p.bonuses[c]) : '')).join('');
+  const reservedHtml = p.reserved
+    .map((card, idx) => {
+      const afford = canActNow ? affordability(p, card.cost).ok : false;
+      return renderCardTile(card, {
+        buyable: canActNow,
+        reservable: false,
+        affordable: canActNow && afford && G.pending.length === 0 && !G.discardState && !G.nobleChoice,
+        buyAct: `buyReserved:${idx}`,
+      });
     })
     .join('');
+  const netTag = window.NET && NET.mode === 'online' && NET.seat === i ? ' <span class="you-tag">나</span>' : '';
+  const noblesHtml = p.nobles.map(() => `<span class="noble-mini">★</span>`).join('');
+  return `
+    <div class="player-panel ${isCurrent ? 'active' : ''}">
+      <h3>${p.name}${netTag} ${isCurrent ? '<span class="turn-tag">현재 턴</span>' : ''}</h3>
+      <div class="player-points">점수: ${p.points}점 ${noblesHtml}</div>
+      <div class="player-row"><span class="row-label">보유 토큰</span><span class="row-items">${tokensHtml || '<em>없음</em>'}</span></div>
+      <div class="player-row"><span class="row-label">카드 보너스</span><span class="row-items">${bonusHtml || '<em>없음</em>'}</span></div>
+      <div class="player-row"><span class="row-label">예약 카드 (${p.reserved.length}/3)</span></div>
+      <div class="reserved-cards">${reservedHtml}</div>
+    </div>`;
 }
 
 function renderLog() {
@@ -546,11 +548,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (act === 'reserve') reserveCard(Number(a), Number(b));
   });
 
-  document.getElementById('players').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-act]');
-    if (!btn) return;
-    const [act, a] = btn.dataset.act.split(':');
-    if (act === 'buyReserved') buyReservedCard(Number(a));
+  document.querySelectorAll('.player-slot').forEach((slot) => {
+    slot.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-act]');
+      if (!btn) return;
+      const [act, a] = btn.dataset.act.split(':');
+      if (act === 'buyReserved') buyReservedCard(Number(a));
+    });
   });
 
   document.getElementById('modal').addEventListener('click', (e) => {

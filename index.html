@@ -25,26 +25,32 @@
   <div id="gameArea">
     <div id="banner"></div>
 
-    <section id="nobles"></section>
+    <div id="tableLayout">
+      <aside class="player-slot" id="playerSlot0"></aside>
 
-    <section id="board">
-      <div class="tier" id="tier3"></div>
-      <div class="tier" id="tier2"></div>
-      <div class="tier" id="tier1"></div>
-    </section>
+      <div id="tableCenter">
+        <section id="nobles"></section>
 
-    <section id="bank"></section>
+        <section id="board">
+          <div class="tier" id="tier3"></div>
+          <div class="tier" id="tier2"></div>
+          <div class="tier" id="tier1"></div>
+        </section>
 
-    <section id="controls">
-      <div id="pendingArea">
-        <span id="pendingLabel">가져올 보석:</span>
-        <div id="pendingChips"></div>
-        <button id="confirmTakeBtn" disabled>확정</button>
-        <button id="cancelTakeBtn" disabled>취소</button>
+        <section id="bank"></section>
+
+        <section id="controls">
+          <div id="pendingArea">
+            <span id="pendingLabel">가져올 보석:</span>
+            <div id="pendingChips"></div>
+            <button id="confirmTakeBtn" disabled>확정</button>
+            <button id="cancelTakeBtn" disabled>취소</button>
+          </div>
+        </section>
       </div>
-    </section>
 
-    <section id="players"></section>
+      <aside class="player-slot" id="playerSlot1"></aside>
+    </div>
 
     <section id="log"></section>
   </div>

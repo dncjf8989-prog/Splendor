@@ -8,6 +8,10 @@
   --gem-black: #2b2b2b;
   --gem-gold: #d9a441;
 
+  /* 카드 테두리용 보정색: 흰색/검정은 테마 배경에 묻히므로 따로 둔다 */
+  --gem-white-edge: #c2b697;
+  --gem-black-edge: #2b2b2b;
+
   /* 라이트 테마 (기본) */
   --bg: #f6f5f1;
   --panel: #ffffff;
@@ -17,9 +21,9 @@
   --accent: #8a5a2b;
   --accent-fg: #ffffff;
 
-  --card-bg: #fdfcf8;
-  --card-empty-a: #f0efe9;
-  --card-empty-b: #e7e5da;
+  --card-bg: #f3ecdb;
+  --card-empty-a: #e6e2d4;
+  --card-empty-b: #dcd7c6;
   --noble-bg: #efe6d0;
   --modal-bg: #ffffff;
   --modal-shadow: rgba(43, 33, 14, 0.22);
@@ -40,9 +44,12 @@
     --accent: #e0b25a;
     --accent-fg: #2a1c04;
 
-    --card-bg: #2c271d;
-    --card-empty-a: #262218;
-    --card-empty-b: #201d15;
+    --gem-white-edge: #efe9da;
+    --gem-black-edge: #7a7263;
+
+    --card-bg: #3a3227;
+    --card-empty-a: #2a2419;
+    --card-empty-b: #221d14;
     --noble-bg: #3a3120;
     --modal-bg: #2a2620;
     --modal-shadow: rgba(0, 0, 0, 0.55);
@@ -63,9 +70,12 @@
   --accent: #e0b25a;
   --accent-fg: #2a1c04;
 
-  --card-bg: #2c271d;
-  --card-empty-a: #262218;
-  --card-empty-b: #201d15;
+  --gem-white-edge: #efe9da;
+  --gem-black-edge: #7a7263;
+
+  --card-bg: #3a3227;
+  --card-empty-a: #2a2419;
+  --card-empty-b: #221d14;
   --noble-bg: #3a3120;
   --modal-bg: #2a2620;
   --modal-shadow: rgba(0, 0, 0, 0.55);
@@ -86,7 +96,7 @@ body {
 }
 
 #app {
-  max-width: 1080px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 16px;
   padding-block: 20px 40px;
@@ -241,6 +251,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 #nobles {
   display: flex;
+  justify-content: center;
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -282,6 +293,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .tier-cards {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
 }
 
@@ -291,6 +303,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   border-radius: 8px;
   border: 2px solid var(--border);
   background: var(--card-bg);
+  box-shadow: 0 1px 3px var(--modal-shadow);
   padding: 6px;
   display: flex;
   flex-direction: column;
@@ -299,8 +312,12 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .card-tile.empty {
   background: repeating-linear-gradient(45deg, var(--card-empty-a), var(--card-empty-a) 6px, var(--card-empty-b) 6px, var(--card-empty-b) 12px);
   border-style: dashed;
+  box-shadow: none;
 }
-.card-tile.unaffordable { opacity: 0.6; }
+/* 살 수 없는 카드도 흐리게 만들지 않는다. 구매 버튼의 활성 여부로만 구분한다. */
+.card-tile.affordable {
+  box-shadow: 0 0 0 2px var(--accent), 0 1px 3px var(--modal-shadow);
+}
 
 .card-top {
   display: flex;
@@ -344,18 +361,20 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 .card-actions button { flex: 1; padding: 4px 2px; font-size: 11px; }
 
-.gem-white, .gem-border-white { background: var(--gem-white); color: var(--gem-white-fg); }
-.gem-blue, .gem-border-blue { background: var(--gem-blue); color: #fff; }
-.gem-green, .gem-border-green { background: var(--gem-green); color: #fff; }
-.gem-red, .gem-border-red { background: var(--gem-red); color: #fff; }
-.gem-black, .gem-border-black { background: var(--gem-black); color: #fff; }
+/* gem-* 는 토큰·비용 아이콘처럼 "색 자체가 내용"인 요소를 칠한다.
+   카드 테두리 색(gem-border-*)은 배경을 건드리지 않는다. */
+.gem-white { background: var(--gem-white); color: var(--gem-white-fg); }
+.gem-blue { background: var(--gem-blue); color: #fff; }
+.gem-green { background: var(--gem-green); color: #fff; }
+.gem-red { background: var(--gem-red); color: #fff; }
+.gem-black { background: var(--gem-black); color: #fff; }
 .gem-gold { background: var(--gem-gold); color: #3a2a05; }
 
-.card-tile.gem-border-white { border-color: var(--gem-white); }
+.card-tile.gem-border-white { border-color: var(--gem-white-edge); }
 .card-tile.gem-border-blue { border-color: var(--gem-blue); }
 .card-tile.gem-border-green { border-color: var(--gem-green); }
 .card-tile.gem-border-red { border-color: var(--gem-red); }
-.card-tile.gem-border-black { border-color: var(--gem-black); }
+.card-tile.gem-border-black { border-color: var(--gem-black-edge); }
 
 #bank {
   background: var(--panel);
@@ -365,7 +384,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   margin-bottom: 12px;
 }
 .bank-title { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-.bank-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.bank-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 
 .bank-chip {
   display: flex;
@@ -389,6 +408,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   margin-bottom: 12px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   flex-wrap: wrap;
 }
@@ -402,12 +422,21 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   border: none;
 }
 
-#players {
+/* 보드를 가운데 두고 두 플레이어를 좌우에 배치해 화면을 가로로 넓게 쓴다. */
+#tableLayout {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(200px, 230px) minmax(0, 1fr) minmax(200px, 230px);
   gap: 12px;
+  align-items: start;
   margin-bottom: 12px;
 }
+#tableCenter {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+#tableCenter > section { margin-bottom: 0; }
 
 .player-panel {
   background: var(--panel);
@@ -440,26 +469,32 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .player-points { font-size: 13px; font-weight: 700; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
 .noble-mini { color: var(--gem-gold); }
 
+/* 좁은 사이드 칼럼에서는 라벨을 한 줄 위로 올려 토큰이 잘리지 않게 한다. */
 .player-row {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
   font-size: 12px;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
 }
-.row-label { color: var(--muted); min-width: 84px; }
+.row-label { color: var(--muted); }
+.row-items { display: flex; flex-wrap: wrap; gap: 4px; }
 .player-row em { color: var(--muted); font-style: normal; font-size: 11px; }
 
 .reserved-cards { display: flex; gap: 6px; flex-wrap: wrap; }
-.reserved-cards .card-tile { width: 84px; min-height: 100px; }
+.reserved-cards .card-tile { width: 64px; min-height: 88px; padding: 4px; gap: 4px; }
+.reserved-cards .card-gem { width: 14px; height: 14px; }
+.reserved-cards .card-points { font-size: 13px; }
+.reserved-cards .cost-icon { width: 17px; height: 17px; font-size: 10px; }
+.reserved-cards .card-actions button { font-size: 10px; padding: 3px 2px; }
 
 #log {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
-  max-height: 160px;
+  max-height: 100px;
   overflow-y: auto;
 }
 .log-title { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
@@ -502,8 +537,19 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   border: 1px solid var(--border);
 }
 
+/* 좌우 칼럼을 둘 만큼 넓지 않으면 보드 아래로 두 플레이어를 나란히 내린다. */
+@media (max-width: 1000px) {
+  #tableLayout {
+    grid-template-columns: 1fr 1fr;
+  }
+  #tableCenter {
+    grid-column: 1 / -1;
+    order: -1;
+  }
+}
+
 @media (max-width: 640px) {
-  #players { grid-template-columns: 1fr; }
+  #tableLayout { grid-template-columns: 1fr; }
   .card-tile { width: 84px; min-height: 110px; }
   #header { flex-wrap: wrap; gap: 8px; }
 }
