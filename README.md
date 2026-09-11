@@ -1,0 +1,2 @@
+# Splendor
+good luck
