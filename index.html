@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>스플렌더 라이트</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="header">
+    <h1>스플렌더 라이트 <span class="badge">2인용 데모</span></h1>
+    <button id="newGameBtn">새 게임</button>
+  </header>
+
+  <nav id="modeTabs">
+    <button id="modeLocalBtn" class="mode-tab active" type="button">로컬 2인 플레이</button>
+    <button id="modeOnlineBtn" class="mode-tab" type="button">온라인 대전</button>
+  </nav>
+
+  <section id="netPanel" hidden></section>
+
+  <div id="gameArea">
+    <div id="banner"></div>
+
+    <section id="nobles"></section>
+
+    <section id="board">
+      <div class="tier" id="tier3"></div>
+      <div class="tier" id="tier2"></div>
+      <div class="tier" id="tier1"></div>
+    </section>
+
+    <section id="bank"></section>
+
+    <section id="controls">
+      <div id="pendingArea">
+        <span id="pendingLabel">가져올 보석:</span>
+        <div id="pendingChips"></div>
+        <button id="confirmTakeBtn" disabled>확정</button>
+        <button id="cancelTakeBtn" disabled>취소</button>
+      </div>
+    </section>
+
+    <section id="players"></section>
+
+    <section id="log"></section>
+  </div>
+</div>
+
+<div id="modalOverlay" class="hidden">
+  <div id="modal"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<script src="cards.js"></script>
+<script src="game.js"></script>
+<script src="net.js"></script>
+</body>
+</html>
