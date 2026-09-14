@@ -82,11 +82,13 @@ function statsMyResult() {
   return 'w';
 }
 
-function statsOpponent() {
-  if (!window.NET || NET.mode !== 'online') return { key: 'AI', name: 'AI' };
-  const opp = NET.opponent;
-  if (opp && opp.id) return { key: opp.id, name: opp.name || '상대' };
-  return { key: 'unknown', name: '알 수 없는 상대' };
+// 3~4인에서는 상대가 여럿이므로, 한 판의 결과를 상대 각각에게 기록한다.
+function statsOpponents() {
+  if (!window.NET || NET.mode !== 'online') return [{ key: 'AI', name: 'AI' }];
+  const list = (NET.opponents || [])
+    .filter((o) => o && o.id)
+    .map((o) => ({ key: o.id, name: o.name || '상대' }));
+  return list.length ? list : [{ key: 'unknown', name: '알 수 없는 상대' }];
 }
 
 // 게임이 끝날 때 한 번만 기록한다. G.gameId는 온라인에서도 양쪽이 공유하므로
@@ -104,13 +106,17 @@ function maybeRecordResult() {
   if (!result) return;
 
   const mode = window.NET && NET.mode === 'online' ? 'online' : 'single';
-  const opp = statsOpponent();
 
+  // 전체 전적은 판 단위로 한 번만 센다.
   s.totals[mode][result] += 1;
-  if (!s.opponents[opp.key]) s.opponents[opp.key] = { name: opp.name, w: 0, l: 0, d: 0, last: 0 };
-  s.opponents[opp.key][result] += 1;
-  s.opponents[opp.key].name = opp.name; // 상대가 닉네임을 바꿨으면 최신 이름으로
-  s.opponents[opp.key].last = Date.now();
+
+  // 상대별 전적은 그 판에 함께한 상대 모두에게 같은 결과를 남긴다.
+  statsOpponents().forEach((opp) => {
+    if (!s.opponents[opp.key]) s.opponents[opp.key] = { name: opp.name, w: 0, l: 0, d: 0, last: 0 };
+    s.opponents[opp.key][result] += 1;
+    s.opponents[opp.key].name = opp.name; // 상대가 닉네임을 바꿨으면 최신 이름으로
+    s.opponents[opp.key].last = Date.now();
+  });
   s.lastRecordedGameId = G.gameId;
 
   STATS.lastRecordedGameId = G.gameId;

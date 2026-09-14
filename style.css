@@ -257,6 +257,20 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   margin: 4px 0;
 }
 .net-sub { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.lobby-list {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.lobby-chip {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+}
 .net-strip {
   background: var(--panel);
   border: 1px solid var(--border);
