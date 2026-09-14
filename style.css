@@ -173,7 +173,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 #modeTabs {
   display: flex;
+  align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
   margin-bottom: 10px;
 }
 .mode-tab {
@@ -185,6 +187,33 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   background: var(--accent);
   color: var(--accent-fg);
   border-color: var(--accent);
+}
+
+#countPicker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+#countPicker.locked { opacity: 0.45; }
+.count-label { font-size: 12px; color: var(--muted); margin-right: 2px; }
+.count-tab {
+  padding: 6px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.count-tab.active {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+
+.player-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
 }
 
 #netPanel[hidden] { display: none; }

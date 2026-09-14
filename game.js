@@ -33,8 +33,16 @@ function escapeHtml(str) {
 }
 
 // ============ 전역 상태 ============
-// 승리 점수. 15점은 너무 빨리 끝나서 21점으로 둔다.
-const WIN_POINTS = 21;
+// 인원수별 규칙. 토큰/귀족 수는 원작 스플렌더와 같은 비율이고, 승리 점수는
+// 인원이 늘수록 한 사람이 가져갈 수 있는 카드가 줄어드는 만큼 낮춘다.
+// (AI끼리 대국시킨 시뮬레이션으로 한 판 길이가 비슷해지도록 맞춘 값)
+const RULES = {
+  2: { tokens: 4, gold: 5, nobles: 3, winPoints: 21 },
+  3: { tokens: 5, gold: 5, nobles: 4, winPoints: 20 },
+  4: { tokens: 7, gold: 5, nobles: 5, winPoints: 19 },
+};
+const DEFAULT_PLAYER_COUNT = 2;
+const HUMAN_SEAT = 0; // 싱글 플레이에서 사람이 앉는 자리
 
 let G = null;
 
@@ -50,21 +58,36 @@ function newPlayer(name) {
   };
 }
 
-function newGame() {
+function newGame(playerCount) {
+  const count = RULES[playerCount] ? playerCount : currentPlayerCount();
+  const rules = RULES[count];
+
   const tiers = [TIER1_CARDS, TIER2_CARDS, TIER3_CARDS].map((list) => {
     const deck = shuffle(list);
     const faceUp = [deck.pop(), deck.pop(), deck.pop(), deck.pop()];
     return { deck, faceUp };
   });
 
+  const bank = { gold: rules.gold };
+  GEMS.forEach((c) => (bank[c] = rules.tokens));
+
   const myName = typeof statsMyDisplayName === 'function' ? statsMyDisplayName() : '플레이어 1';
+  const isSingle = !window.NET || NET.mode === 'single';
+  const players = [];
+  for (let i = 0; i < count; i++) {
+    if (i === 0) players.push(newPlayer(myName));
+    else if (isSingle) players.push(newPlayer(count > 2 ? `AI ${i}` : 'AI'));
+    else players.push(newPlayer(`플레이어 ${i + 1}`));
+  }
 
   G = {
     gameId: 'g-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
-    bank: { white: 4, blue: 4, green: 4, red: 4, black: 4, gold: 5 },
+    playerCount: count,
+    winPoints: rules.winPoints,
+    bank,
     tiers,
-    nobles: shuffle(NOBLES).slice(0, 3),
-    players: [newPlayer(myName), newPlayer('플레이어 2')],
+    nobles: shuffle(NOBLES).slice(0, rules.nobles),
+    players,
     currentIndex: 0,
     pending: [],
     discardState: null,
@@ -73,12 +96,18 @@ function newGame() {
     winnerText: '',
   };
 
-  if (window.NET && NET.mode === 'single') {
-    G.players[1].name = 'AI';
-  }
-
-  log('새 게임을 시작합니다. 플레이어 1부터 시작합니다.');
+  log(`${count}인 게임을 시작합니다. (목표 ${rules.winPoints}점)`);
   render();
+}
+
+// 화면에 설정된 인원수. 게임이 진행 중이면 그 게임의 인원을 따른다.
+let selectedPlayerCount = DEFAULT_PLAYER_COUNT;
+function currentPlayerCount() {
+  return G && G.playerCount ? G.playerCount : selectedPlayerCount;
+}
+
+function winPoints() {
+  return G && G.winPoints ? G.winPoints : RULES[currentPlayerCount()].winPoints;
 }
 
 function currentPlayer() {
@@ -92,7 +121,7 @@ function canAct() {
   if (NET.mode === 'online') return NET.seat === G.currentIndex;
   if (NET.mode === 'single') {
     if (window.AI && AI.acting) return true;
-    return G.currentIndex !== (window.AI ? AI.seat : 1);
+    return G.currentIndex === HUMAN_SEAT;
   }
   return true;
 }
@@ -248,8 +277,13 @@ function reserveCard(tierIdx, idx) {
 }
 
 // ============ 턴 종료 처리 (초과 토큰 / 귀족 / 승리 판정) ============
+// 싱글 플레이에서 0번 자리는 사람, 나머지 자리는 전부 AI가 맡는다.
+function isAiSeat(index) {
+  return !!(window.NET && NET.mode === 'single' && index !== HUMAN_SEAT);
+}
+
 function isAiPlayer(player) {
-  return !!(window.NET && NET.mode === 'single' && window.AI && player === G.players[AI.seat]);
+  return isAiSeat(G.players.indexOf(player));
 }
 
 function resolveActionEnd(player) {
@@ -327,7 +361,7 @@ function chooseNoble(nobleId) {
 function finishTurnFlow(player) {
   checkNoblesAndContinue(player, () => {
     const isLastPlayerOfRound = G.currentIndex === G.players.length - 1;
-    if (isLastPlayerOfRound && G.players.some((p) => p.points >= WIN_POINTS)) {
+    if (isLastPlayerOfRound && G.players.some((p) => p.points >= winPoints())) {
       endGame();
       notifyNet();
       return;
@@ -413,11 +447,11 @@ function renderBanner() {
     el.innerHTML = `<div class="banner over">${escapeHtml(G.winnerText)}</div>`;
     return;
   }
-  let turnText = `${escapeHtml(currentPlayer().name)}의 차례입니다. (목표: ${WIN_POINTS}점 이상)`;
+  let turnText = `${escapeHtml(currentPlayer().name)}의 차례입니다. (목표: ${winPoints()}점 이상)`;
   if (window.NET && NET.mode === 'online') {
-    turnText = canAct() ? `당신의 차례입니다. (목표: ${WIN_POINTS}점 이상)` : `${escapeHtml(currentPlayer().name)}(상대방)의 차례를 기다리는 중입니다.`;
+    turnText = canAct() ? `당신의 차례입니다. (목표: ${winPoints()}점 이상)` : `${escapeHtml(currentPlayer().name)}(상대방)의 차례를 기다리는 중입니다.`;
   } else if (window.NET && NET.mode === 'single') {
-    turnText = canAct() ? `당신의 차례입니다. (목표: ${WIN_POINTS}점 이상)` : 'AI가 생각하는 중입니다...';
+    turnText = canAct() ? `당신의 차례입니다. (목표: ${winPoints()}점 이상)` : 'AI가 생각하는 중입니다...';
   }
   el.innerHTML = `<div class="banner">${turnText}</div>`;
 }
@@ -487,11 +521,18 @@ function renderPending() {
   document.getElementById('cancelTakeBtn').disabled = G.pending.length === 0;
 }
 
+// 짝수 번째 플레이어는 왼쪽, 홀수 번째는 오른쪽 칼럼에 놓는다.
+// (2인: 좌/우 한 명씩, 3인: 좌 2 우 1, 4인: 좌우 2명씩)
 function renderPlayers() {
+  const left = document.getElementById('playerColLeft');
+  const right = document.getElementById('playerColRight');
+  if (!left || !right) return;
+  const html = ['', ''];
   G.players.forEach((p, i) => {
-    const slot = document.getElementById('playerSlot' + i);
-    if (slot) slot.innerHTML = renderPlayerPanel(p, i);
+    html[i % 2] += renderPlayerPanel(p, i);
   });
+  left.innerHTML = html[0];
+  right.innerHTML = html[1];
 }
 
 function renderPlayerPanel(p, i) {
@@ -594,7 +635,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (act === 'reserve') reserveCard(Number(a), Number(b));
   });
 
-  document.querySelectorAll('.player-slot').forEach((slot) => {
+  document.querySelectorAll('.player-column').forEach((slot) => {
     slot.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-act]');
       if (!btn) return;

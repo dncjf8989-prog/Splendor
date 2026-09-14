@@ -11,7 +11,7 @@
 <body>
 <div id="app">
   <header id="header">
-    <h1>스플렌더 라이트 <span class="badge">2인용 데모</span></h1>
+    <h1>스플렌더 라이트 <span class="badge">2~4인 데모</span></h1>
     <div class="header-actions">
       <button id="statsBtn" type="button">전적</button>
       <button id="newGameBtn">새 게임</button>
@@ -21,6 +21,12 @@
   <nav id="modeTabs">
     <button id="modeSingleBtn" class="mode-tab active" type="button">싱글 플레이</button>
     <button id="modeOnlineBtn" class="mode-tab" type="button">온라인 대전</button>
+    <div id="countPicker">
+      <span class="count-label">인원</span>
+      <button class="count-tab active" type="button" data-count="2">2인</button>
+      <button class="count-tab" type="button" data-count="3">3인</button>
+      <button class="count-tab" type="button" data-count="4">4인</button>
+    </div>
   </nav>
 
   <section id="netPanel" hidden></section>
@@ -29,7 +35,7 @@
     <div id="banner"></div>
 
     <div id="tableLayout">
-      <aside class="player-slot" id="playerSlot0"></aside>
+      <aside class="player-column" id="playerColLeft"></aside>
 
       <div id="tableCenter">
         <section id="nobles"></section>
@@ -52,7 +58,7 @@
         </section>
       </div>
 
-      <aside class="player-slot" id="playerSlot1"></aside>
+      <aside class="player-column" id="playerColRight"></aside>
     </div>
 
     <section id="log"></section>

@@ -1,20 +1,15 @@
 'use strict';
 
-// ============ 싱글 플레이용 AI (플레이어 2를 대신 조작) ============
+// ============ 싱글 플레이용 AI (0번 자리를 제외한 모든 자리를 조작) ============
 // game.js의 전역 G와 실제 행동 함수(confirmTake/buyBoardCard/...)를 그대로 쓴다.
 // AI가 자기 턴을 처리하는 동안에는 AI.acting을 켜서 canAct() 가드를 통과한다.
 
 const AI = {
-  seat: 1,
   acting: false,
   timer: null,
   delayMs: 700,
 };
 window.AI = AI;
-
-function aiControls(playerIndex) {
-  return window.NET && NET.mode === 'single' && playerIndex === AI.seat;
-}
 
 // ============ 평가 함수 ============
 
@@ -44,6 +39,10 @@ function aiCardScore(card, player) {
   let score = card.points * 3;
   score += aiColorDemand(card.gem) * 0.15;
   score += aiNobleNeed(player, card.gem) * 1.5;
+  // 이미 많이 쌓은 색의 보너스는 가치가 떨어진다.
+  score -= (player.bonuses[card.gem] || 0) * 0.4;
+  // 승리 점수에 가까워질수록 0점짜리 카드에 턴을 쓰지 않는다.
+  if (card.points === 0) score -= (player.points / winPoints()) * 3;
   const total = Object.values(card.cost).reduce((a, b) => a + b, 0);
   score -= total * 0.15;
   return score;
@@ -108,9 +107,9 @@ function aiPickTokens(player) {
 // ============ 턴 처리 ============
 function aiTakeTurn() {
   if (!window.NET || NET.mode !== 'single') return;
-  if (!G || G.gameOver || G.currentIndex !== AI.seat) return;
+  if (!G || G.gameOver || !isAiSeat(G.currentIndex)) return;
 
-  const me = G.players[AI.seat];
+  const me = G.players[G.currentIndex];
   AI.acting = true;
   try {
     // 1) 살 수 있는 카드가 있으면 가장 가치 있는 것을 산다.
@@ -163,7 +162,7 @@ function aiTakeTurn() {
 // 사람이 AI의 진행을 눈으로 따라갈 수 있도록 잠깐 뒤에 움직인다.
 function aiScheduleTurn() {
   if (!window.NET || NET.mode !== 'single') return;
-  if (!G || G.gameOver || G.currentIndex !== AI.seat) return;
+  if (!G || G.gameOver || !isAiSeat(G.currentIndex)) return;
   clearTimeout(AI.timer);
   AI.timer = setTimeout(aiTakeTurn, AI.delayMs);
 }

@@ -73,10 +73,13 @@ function statsMyResult() {
   const mySeat = window.NET && NET.mode === 'online' ? NET.seat : 0;
   if (mySeat == null || !G || !G.players[mySeat]) return null;
   const me = G.players[mySeat];
-  const opp = G.players[1 - mySeat];
-  if (me.points !== opp.points) return me.points > opp.points ? 'w' : 'l';
-  if (me.cards.length !== opp.cards.length) return me.cards.length < opp.cards.length ? 'w' : 'l';
-  return 'd';
+
+  // 3~4인에서도 맞도록 전원과 비교한다. (점수 -> 개발 카드가 적은 쪽이 우위)
+  const beats = (a, b) => (a.points !== b.points ? a.points > b.points : a.cards.length < b.cards.length);
+  const others = G.players.filter((_, i) => i !== mySeat);
+  if (others.some((p) => beats(p, me))) return 'l';
+  if (others.some((p) => p.points === me.points && p.cards.length === me.cards.length)) return 'd';
+  return 'w';
 }
 
 function statsOpponent() {

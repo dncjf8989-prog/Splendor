@@ -37,6 +37,8 @@ function netRandomRoomCode() {
 function netSerializeState() {
   return {
     gameId: G.gameId,
+    playerCount: G.playerCount,
+    winPoints: G.winPoints,
     bank: G.bank,
     tiers: G.tiers.map((t) => ({ deck: t.deck, faceUp: t.faceUp })),
     nobles: G.nobles,
@@ -51,6 +53,8 @@ function netSerializeState() {
 function netApplyRemoteState(state) {
   G = {
     gameId: state.gameId,
+    playerCount: state.playerCount,
+    winPoints: state.winPoints,
     bank: state.bank,
     tiers: state.tiers,
     nobles: state.nobles,
@@ -292,7 +296,8 @@ function netSwitchMode(mode) {
   } else {
     NET.mode = 'online';
     NET.status = 'idle';
-    render();
+    selectedPlayerCount = 2;
+    newGame(2);
   }
   renderNetPanel();
   updateModeTabs();
@@ -314,7 +319,22 @@ function updateModeTabs() {
     netPanel.hidden = false;
     gameArea.hidden = NET.status !== 'active';
   }
+  updateCountPicker();
   updateNewGameButton();
+}
+
+// 온라인 대전은 1:1 연결이라 2인 전용이다. 싱글에서만 인원을 고를 수 있다.
+function updateCountPicker() {
+  const picker = document.getElementById('countPicker');
+  if (!picker) return;
+  const online = NET.mode === 'online';
+  picker.classList.toggle('locked', online);
+  picker.title = online ? '온라인 대전은 2인 전용입니다' : '';
+  picker.querySelectorAll('[data-count]').forEach((btn) => {
+    const n = Number(btn.dataset.count);
+    btn.disabled = online;
+    btn.classList.toggle('active', online ? n === 2 : n === currentPlayerCount());
+  });
 }
 
 function updateNewGameButton() {
@@ -393,6 +413,14 @@ function renderNetPanel() {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('modeSingleBtn').addEventListener('click', () => netSwitchMode('single'));
   document.getElementById('modeOnlineBtn').addEventListener('click', () => netSwitchMode('online'));
+
+  document.getElementById('countPicker').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-count]');
+    if (!btn || btn.disabled) return;
+    selectedPlayerCount = Number(btn.dataset.count);
+    newGame(selectedPlayerCount);
+    updateModeTabs();
+  });
 
   document.getElementById('netPanel').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-net-act]');
