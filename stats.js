@@ -67,13 +67,6 @@ function statsSave(s) {
   statsWriteJson(STATS_KEY, s);
 }
 
-function statsReset() {
-  statsWriteJson(STATS_KEY, null);
-  STATS.lastRecordedGameId = null;
-  renderStatsPanel();
-  render();
-}
-
 // ============ 결과 판정 및 기록 ============
 // endGame()의 승패 판정과 같은 기준(점수 -> 개발 카드 수)을 쓴다.
 function statsMyResult() {
@@ -181,8 +174,7 @@ function renderStatsPanel() {
     <table class="stats-table"><tbody>${oppRows}</tbody></table>
 
     <div class="stats-footer">
-      <span class="stats-note">전적은 이 브라우저에만 저장됩니다. 기기나 브라우저를 바꾸면 따로 쌓입니다.</span>
-      <button data-stats-act="reset">전적 초기화</button>
+      <span class="stats-note">전적은 이 브라우저에만 저장되며, 게임 결과로만 갱신됩니다. 기기나 브라우저를 바꾸면 따로 쌓입니다.</span>
     </div>`;
 }
 
@@ -221,7 +213,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderStatsPanel();
         render();
       }
-      if (btnEl.dataset.statsAct === 'reset') statsReset();
     });
   }
 

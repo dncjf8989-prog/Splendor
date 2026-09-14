@@ -33,6 +33,9 @@ function escapeHtml(str) {
 }
 
 // ============ 전역 상태 ============
+// 승리 점수. 15점은 너무 빨리 끝나서 21점으로 둔다.
+const WIN_POINTS = 21;
+
 let G = null;
 
 function newPlayer(name) {
@@ -324,7 +327,7 @@ function chooseNoble(nobleId) {
 function finishTurnFlow(player) {
   checkNoblesAndContinue(player, () => {
     const isLastPlayerOfRound = G.currentIndex === G.players.length - 1;
-    if (isLastPlayerOfRound && G.players.some((p) => p.points >= 15)) {
+    if (isLastPlayerOfRound && G.players.some((p) => p.points >= WIN_POINTS)) {
       endGame();
       notifyNet();
       return;
@@ -410,11 +413,11 @@ function renderBanner() {
     el.innerHTML = `<div class="banner over">${escapeHtml(G.winnerText)}</div>`;
     return;
   }
-  let turnText = `${escapeHtml(currentPlayer().name)}의 차례입니다. (목표: 15점 이상)`;
+  let turnText = `${escapeHtml(currentPlayer().name)}의 차례입니다. (목표: ${WIN_POINTS}점 이상)`;
   if (window.NET && NET.mode === 'online') {
-    turnText = canAct() ? '당신의 차례입니다. (목표: 15점 이상)' : `${escapeHtml(currentPlayer().name)}(상대방)의 차례를 기다리는 중입니다.`;
+    turnText = canAct() ? `당신의 차례입니다. (목표: ${WIN_POINTS}점 이상)` : `${escapeHtml(currentPlayer().name)}(상대방)의 차례를 기다리는 중입니다.`;
   } else if (window.NET && NET.mode === 'single') {
-    turnText = canAct() ? '당신의 차례입니다. (목표: 15점 이상)' : 'AI가 생각하는 중입니다...';
+    turnText = canAct() ? `당신의 차례입니다. (목표: ${WIN_POINTS}점 이상)` : 'AI가 생각하는 중입니다...';
   }
   el.innerHTML = `<div class="banner">${turnText}</div>`;
 }
