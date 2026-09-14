@@ -22,6 +22,16 @@ function costString(cost) {
     .join(', ');
 }
 
+// 닉네임은 상대 브라우저에서 오는 값이므로 화면에 넣기 전에 반드시 이스케이프한다.
+function escapeHtml(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ============ 전역 상태 ============
 let G = null;
 
@@ -44,11 +54,14 @@ function newGame() {
     return { deck, faceUp };
   });
 
+  const myName = typeof statsMyDisplayName === 'function' ? statsMyDisplayName() : '플레이어 1';
+
   G = {
+    gameId: 'g-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
     bank: { white: 4, blue: 4, green: 4, red: 4, black: 4, gold: 5 },
     tiers,
     nobles: shuffle(NOBLES).slice(0, 3),
-    players: [newPlayer('플레이어 1'), newPlayer('플레이어 2')],
+    players: [newPlayer(myName), newPlayer('플레이어 2')],
     currentIndex: 0,
     pending: [],
     discardState: null,
@@ -380,6 +393,7 @@ function renderCardTile(card, opts) {
 
 function render() {
   if (!G) return;
+  if (typeof maybeRecordResult === 'function') maybeRecordResult();
   renderBanner();
   renderNobles();
   renderBoard();
@@ -393,12 +407,12 @@ function render() {
 function renderBanner() {
   const el = document.getElementById('banner');
   if (G.gameOver) {
-    el.innerHTML = `<div class="banner over">${G.winnerText}</div>`;
+    el.innerHTML = `<div class="banner over">${escapeHtml(G.winnerText)}</div>`;
     return;
   }
-  let turnText = `${currentPlayer().name}의 차례입니다. (목표: 15점 이상)`;
+  let turnText = `${escapeHtml(currentPlayer().name)}의 차례입니다. (목표: 15점 이상)`;
   if (window.NET && NET.mode === 'online') {
-    turnText = canAct() ? '당신의 차례입니다. (목표: 15점 이상)' : `${currentPlayer().name}(상대방)의 차례를 기다리는 중입니다.`;
+    turnText = canAct() ? '당신의 차례입니다. (목표: 15점 이상)' : `${escapeHtml(currentPlayer().name)}(상대방)의 차례를 기다리는 중입니다.`;
   } else if (window.NET && NET.mode === 'single') {
     turnText = canAct() ? '당신의 차례입니다. (목표: 15점 이상)' : 'AI가 생각하는 중입니다...';
   }
@@ -499,7 +513,7 @@ function renderPlayerPanel(p, i) {
   const noblesHtml = p.nobles.map(() => `<span class="noble-mini">★</span>`).join('');
   return `
     <div class="player-panel ${isCurrent ? 'active' : ''}">
-      <h3>${p.name}${netTag} ${isCurrent ? '<span class="turn-tag">현재 턴</span>' : ''}</h3>
+      <h3>${escapeHtml(p.name)}${netTag} ${isCurrent ? '<span class="turn-tag">현재 턴</span>' : ''}</h3>
       <div class="player-points">점수: ${p.points}점 ${noblesHtml}</div>
       <div class="player-row"><span class="row-label">보유 토큰</span><span class="row-items">${tokensHtml || '<em>없음</em>'}</span></div>
       <div class="player-row"><span class="row-label">카드 보너스</span><span class="row-items">${bonusHtml || '<em>없음</em>'}</span></div>
@@ -510,7 +524,7 @@ function renderPlayerPanel(p, i) {
 
 function renderLog() {
   const el = document.getElementById('log');
-  el.innerHTML = `<div class="log-title">진행 기록</div><ul>${G.logs.map((l) => `<li>${l}</li>`).join('')}</ul>`;
+  el.innerHTML = `<div class="log-title">진행 기록</div><ul>${G.logs.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>`;
 }
 
 function renderModal() {
@@ -519,7 +533,7 @@ function renderModal() {
   if (G.discardState) {
     const { player, needed } = G.discardState;
     modal.innerHTML = `
-      <h3>${player.name}의 토큰이 10개를 초과했습니다.</h3>
+      <h3>${escapeHtml(player.name)}의 토큰이 10개를 초과했습니다.</h3>
       <p>${needed}개를 버려야 합니다.</p>
       <div class="modal-tokens">
         ${GEMS.concat(['gold'])

@@ -16,6 +16,7 @@ const NET = {
   conn: null,
   status: 'idle', // idle | creating | waiting | connecting | active | error
   errorMsg: '',
+  opponent: null, // 상대의 { id, name } - 상대전적 집계에 쓴다
 };
 // game.js는 window.NET으로 존재 여부를 확인하므로 전역 객체에 명시적으로 노출한다.
 // (top-level const는 window의 프로퍼티가 되지 않는다.)
@@ -35,6 +36,7 @@ function netRandomRoomCode() {
 // ============ 상태 직렬화 ============
 function netSerializeState() {
   return {
+    gameId: G.gameId,
     bank: G.bank,
     tiers: G.tiers.map((t) => ({ deck: t.deck, faceUp: t.faceUp })),
     nobles: G.nobles,
@@ -48,6 +50,7 @@ function netSerializeState() {
 
 function netApplyRemoteState(state) {
   G = {
+    gameId: state.gameId,
     bank: state.bank,
     tiers: state.tiers,
     nobles: state.nobles,
@@ -88,13 +91,43 @@ NET.requestNewGame = function requestNewGame() {
   NET.commit();
 };
 
+// 내 프로필(기기 ID + 닉네임)을 상대에게 알려 상대전적을 집계할 수 있게 한다.
+function netMyProfile() {
+  if (typeof statsProfile !== 'function') return { id: 'unknown', name: '' };
+  const p = statsProfile();
+  return { id: p.id, name: statsMyDisplayName() };
+}
+
+// 상대가 보낸 프로필은 신뢰할 수 없으므로 형태와 길이를 다듬어 받는다.
+function netSanitizeProfile(profile) {
+  if (!profile || typeof profile !== 'object') return null;
+  const id = typeof profile.id === 'string' ? profile.id.slice(0, 40) : '';
+  const name = typeof profile.name === 'string' ? profile.name.replace(/\s+/g, ' ').trim().slice(0, 12) : '';
+  if (!id) return null;
+  return { id, name: name || '상대' };
+}
+
 // ============ 메시지 처리 ============
 function netHandleMessage(msg) {
   if (!msg || !msg.type) return;
   if (msg.type === 'init') {
     NET.seat = msg.seat;
     NET.status = 'active';
+    NET.opponent = netSanitizeProfile(msg.profile);
     netApplyRemoteState(msg.state);
+    // 내 프로필을 답장해야 호스트도 상대전적을 남길 수 있다.
+    netSend({ type: 'hello', profile: netMyProfile() });
+    renderNetPanel();
+    return;
+  }
+  if (msg.type === 'hello') {
+    NET.opponent = netSanitizeProfile(msg.profile);
+    // 호스트 화면과 게스트 화면 모두 상대 닉네임이 보이도록 이름을 갱신해 동기화한다.
+    if (NET.role === 'host' && NET.opponent && G) {
+      G.players[1].name = NET.opponent.name;
+      render();
+      NET.commit();
+    }
     renderNetPanel();
     return;
   }
@@ -154,7 +187,7 @@ function netCreateRoom() {
     conn.on('open', () => {
       newGame();
       NET.status = 'active';
-      netSend({ type: 'init', seat: 1, state: netSerializeState() });
+      netSend({ type: 'init', seat: 1, state: netSerializeState(), profile: netMyProfile() });
       renderNetPanel();
     });
   });
@@ -231,6 +264,7 @@ function netCleanupPeer() {
   NET.role = null;
   NET.roomCode = null;
   NET.seat = null;
+  NET.opponent = null;
 }
 
 function netLeaveRoom() {
