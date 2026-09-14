@@ -130,6 +130,13 @@ function netSendToHost(msg) {
   if (link) netSendTo(link.conn, msg);
 }
 
+// 채팅도 상태와 같은 경로로 오간다. 방장이면 전원에게, 게스트면 방장에게.
+function netSendChat(entry) {
+  const msg = { type: 'chat', seat: entry.seat, name: entry.name, text: entry.text };
+  if (NET.role === 'host') netBroadcast(msg);
+  else netSendToHost(msg);
+}
+
 NET.commit = function commit() {
   if (NET.mode !== 'online' || NET.status !== 'active') return;
   const msg = { type: 'state', state: netSerializeState() };
@@ -231,6 +238,23 @@ function netHostHandle(conn, msg) {
     return;
   }
 
+  if (msg.type === 'chat') {
+    if (!link) return;
+    // 도배 방지: 같은 사람이 너무 빠르게 보내면 흘려보낸다.
+    const now = Date.now();
+    if (link.lastChatAt && now - link.lastChatAt < 400) return;
+    link.lastChatAt = now;
+    // 보낸 사람은 연결 정보로 덮어쓴다. 게스트가 남의 이름을 사칭할 수 없다.
+    const entry = {
+      seat: link.seat,
+      name: link.profile ? link.profile.name : '상대',
+      text: msg.text,
+    };
+    const shown = chatReceive(entry);
+    if (shown) netBroadcast({ type: 'chat', seat: shown.seat, name: shown.name, text: shown.text }, conn);
+    return;
+  }
+
   if (msg.type === 'left') {
     netHostLinkGone(conn);
   }
@@ -242,6 +266,8 @@ function netHostStartGame() {
     if (link.profile && G.players[link.seat]) G.players[link.seat].name = link.profile.name;
   });
   NET.status = 'active';
+  chatClear();
+  chatSystem('대전이 시작되었습니다. 자유롭게 대화하세요.');
   const profiles = netProfileList();
   netSetOpponentsFrom(profiles);
   render();
@@ -260,6 +286,7 @@ function netHostLinkGone(conn) {
   if (NET.status === 'active') {
     // 진행 중에 한 명이라도 빠지면 판을 이어갈 수 없다.
     netBroadcast({ type: 'peerLeft', name: gone.profile ? gone.profile.name : '상대' });
+    chatSystem(`${gone.profile ? gone.profile.name : '참가자'}님의 연결이 끊어졌습니다.`);
     NET.status = 'error';
     NET.errorMsg = `${gone.profile ? gone.profile.name : '참가자'}님의 연결이 끊어져 게임을 종료합니다.`;
     netCleanupPeer();
@@ -343,6 +370,8 @@ function netGuestHandle(msg) {
   if (msg.type === 'init') {
     NET.seat = msg.seat;
     NET.status = 'active';
+    chatClear();
+    chatSystem('대전이 시작되었습니다. 자유롭게 대화하세요.');
     netSetOpponentsFrom(msg.profiles);
     netApplyRemoteState(msg.state);
     renderNetPanel();
@@ -351,6 +380,11 @@ function netGuestHandle(msg) {
 
   if (msg.type === 'state') {
     netApplyRemoteState(msg.state);
+    return;
+  }
+
+  if (msg.type === 'chat') {
+    chatReceive(msg);
     return;
   }
 
@@ -363,6 +397,7 @@ function netGuestHandle(msg) {
   }
 
   if (msg.type === 'peerLeft') {
+    chatSystem(`${msg.name || '참가자'}님의 연결이 끊어졌습니다.`);
     NET.status = 'error';
     NET.errorMsg = `${msg.name || '참가자'}님의 연결이 끊어져 게임을 종료합니다.`;
     netCleanupPeer();
@@ -372,6 +407,7 @@ function netGuestHandle(msg) {
 
 function netGuestHostGone() {
   if (NET.mode !== 'online' || NET.status === 'error' || NET.status === 'idle') return;
+  chatSystem('방장과의 연결이 끊어졌습니다.');
   NET.status = 'error';
   NET.errorMsg = '방장과의 연결이 끊어졌습니다.';
   netCleanupPeer();
@@ -418,6 +454,7 @@ function netLeaveRoom() {
   netCleanupPeer();
   NET.status = 'idle';
   NET.errorMsg = '';
+  chatClear();
   renderNetPanel();
 }
 
@@ -425,6 +462,7 @@ function netRetry() {
   netCleanupPeer();
   NET.status = 'idle';
   NET.errorMsg = '';
+  chatClear();
   renderNetPanel();
 }
 
@@ -491,6 +529,11 @@ function updateNewGameButton() {
 }
 
 function renderNetPanel() {
+  renderNetPanelBody();
+  renderChat();
+}
+
+function renderNetPanelBody() {
   const el = document.getElementById('netPanel');
   if (!el) return;
   updateModeTabs();

@@ -723,3 +723,63 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   margin-top: 18px;
 }
 .stats-note { font-size: 11px; color: var(--muted); flex: 1; min-width: 180px; }
+
+/* ============ 채팅 ============ */
+#bottomRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: stretch;
+}
+#bottomRow > #log { flex: 2 1 320px; margin: 0; }
+
+#chatPanel {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+#chatPanel[hidden] { display: none; }
+.chat-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+
+#chatLog {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  font-size: 12px;
+  height: 100px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+#chatLog li { margin-bottom: 3px; line-height: 1.45; }
+.chat-system { color: var(--muted); font-style: italic; }
+.chat-name {
+  font-weight: 700;
+  color: var(--accent);
+  margin-right: 5px;
+}
+.chat-mine .chat-name { color: var(--text); }
+
+#chatForm { display: flex; gap: 6px; }
+#chatInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+#chatInput:disabled { opacity: 0.6; }
+#chatSendBtn { padding: 7px 12px; font-size: 13px; }
