@@ -58,7 +58,9 @@ function newPlayer(name) {
   };
 }
 
-function newGame(playerCount) {
+// startIndex를 주면 그 자리가 선공이 된다. 온라인 대전은 방장이 무작위로
+// 뽑아 넘기고, 싱글 플레이는 늘 사람(0번 자리)이 먼저 둔다.
+function newGame(playerCount, startIndex) {
   const count = RULES[playerCount] ? playerCount : currentPlayerCount();
   const rules = RULES[count];
 
@@ -70,6 +72,8 @@ function newGame(playerCount) {
 
   const bank = { gold: rules.gold };
   GEMS.forEach((c) => (bank[c] = rules.tokens));
+
+  const first = Number.isInteger(startIndex) ? ((startIndex % count) + count) % count : 0;
 
   const myName = typeof statsMyDisplayName === 'function' ? statsMyDisplayName() : '플레이어 1';
   const isSingle = !window.NET || NET.mode === 'single';
@@ -88,7 +92,8 @@ function newGame(playerCount) {
     tiers,
     nobles: shuffle(NOBLES).slice(0, rules.nobles),
     players,
-    currentIndex: 0,
+    startIndex: first,
+    currentIndex: first,
     pending: [],
     discardState: null,
     logs: [],
@@ -108,6 +113,12 @@ function currentPlayerCount() {
 
 function winPoints() {
   return G && G.winPoints ? G.winPoints : RULES[currentPlayerCount()].winPoints;
+}
+
+// 선공이 누구인지 기록에 남긴다. 온라인 대전은 newGame 시점에 아직 참가자
+// 이름이 '플레이어 2' 같은 임시값이라, 이름을 채운 뒤에 따로 부른다.
+function logFirstPlayer() {
+  log(`선공은 ${G.players[G.startIndex].name}입니다.`);
 }
 
 function currentPlayer() {
@@ -360,7 +371,8 @@ function chooseNoble(nobleId) {
 
 function finishTurnFlow(player) {
   checkNoblesAndContinue(player, () => {
-    const isLastPlayerOfRound = G.currentIndex === G.players.length - 1;
+    const lastSeatOfRound = ((G.startIndex || 0) + G.players.length - 1) % G.players.length;
+    const isLastPlayerOfRound = G.currentIndex === lastSeatOfRound;
     if (isLastPlayerOfRound && G.players.some((p) => p.points >= winPoints())) {
       endGame();
       notifyNet();

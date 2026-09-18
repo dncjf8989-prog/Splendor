@@ -48,6 +48,7 @@ function netSerializeState() {
     tiers: G.tiers.map((t) => ({ deck: t.deck, faceUp: t.faceUp })),
     nobles: G.nobles,
     players: G.players,
+    startIndex: G.startIndex,
     currentIndex: G.currentIndex,
     logs: G.logs.slice(0, 20),
     gameOver: G.gameOver,
@@ -64,6 +65,7 @@ function netApplyRemoteState(state) {
     tiers: state.tiers,
     nobles: state.nobles,
     players: state.players,
+    startIndex: state.startIndex || 0,
     currentIndex: state.currentIndex,
     pending: [],
     discardState: null,
@@ -261,10 +263,13 @@ function netHostHandle(conn, msg) {
 }
 
 function netHostStartGame() {
-  newGame(NET.roomSize);
+  // 선공은 매 판 무작위로 정한다. 방장이 뽑아서 상태에 담아 전원에게 알리므로
+  // 모두가 같은 선공을 본다 (재대결 때도 다시 뽑는다).
+  newGame(NET.roomSize, Math.floor(Math.random() * NET.roomSize));
   NET.links.forEach((link) => {
     if (link.profile && G.players[link.seat]) G.players[link.seat].name = link.profile.name;
   });
+  logFirstPlayer();
   NET.status = 'active';
   chatClear();
   chatSystem('대전이 시작되었습니다. 자유롭게 대화하세요.');
