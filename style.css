@@ -783,3 +783,62 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 #chatInput:disabled { opacity: 0.6; }
 #chatSendBtn { padding: 7px 12px; font-size: 13px; }
+
+/* ============ 종료 팝업 ============ */
+.result-title { margin: 0 0 6px; font-size: 18px; }
+.result-headline {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--win-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.result-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.result-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 0 8px 6px;
+  border-bottom: 1px solid var(--border);
+}
+.result-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.result-table th { white-space: nowrap; }
+.result-table th:first-child,
+.result-table td:first-child { width: 3.2em; color: var(--muted); }
+.result-table th:nth-child(n + 3),
+.result-table td:nth-child(n + 3) { text-align: right; width: 3.5em; }
+
+.result-row.result-me td { background: var(--active-ring); }
+.result-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 10px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.result-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.result-actions button { padding: 8px 16px; font-size: 13px; }
+.result-primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+.result-primary:disabled { font-weight: 400; }

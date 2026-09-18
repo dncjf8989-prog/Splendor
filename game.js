@@ -404,7 +404,7 @@ function endGame() {
   }
   const tie = G.players.every((p) => p.points === winner.points && p.cards.length === winner.cards.length);
   if (tie) {
-    G.winnerText = `무승부! 두 플레이어 모두 ${winner.points}점입니다.`;
+    G.winnerText = `무승부! ${G.players.length}명 모두 ${winner.points}점입니다.`;
   } else {
     G.winnerText = `${winner.name} 승리! (${winner.points}점, 개발 카드 ${winner.cards.length}장)`;
   }
@@ -583,6 +583,70 @@ function renderLog() {
   el.innerHTML = `<div class="log-title">진행 기록</div><ul>${G.logs.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>`;
 }
 
+// ============ 종료 팝업 ============
+// 한 판에 한 번만 띄운다. 닫은 판의 gameId를 기억해 다시 그려도 열리지 않게 한다.
+// (온라인은 턴마다 G가 통째로 덮어써지므로 G 안에 두면 닫아도 다시 열린다)
+let resultClosedFor = null;
+
+function closeResultModal() {
+  resultClosedFor = G ? G.gameId : null;
+  render();
+}
+
+// 최종 순위. endGame과 같은 기준(점수 높은 순, 동점이면 개발 카드가 적은 순).
+function finalStandings() {
+  return G.players
+    .map((player, seat) => ({ player, seat }))
+    .sort((a, b) => b.player.points - a.player.points || a.player.cards.length - b.player.cards.length);
+}
+
+// 내 자리. 온라인은 배정받은 자리, 싱글은 사람 자리.
+function mySeatIndex() {
+  if (window.NET && NET.mode === 'online') return NET.seat;
+  return HUMAN_SEAT;
+}
+
+function resultModalHtml() {
+  const rows = finalStandings();
+  const me = mySeatIndex();
+  let rank = 0;
+  let prev = null;
+  const body = rows
+    .map((row, i) => {
+      const key = row.player.points + '/' + row.player.cards.length;
+      if (key !== prev) { rank = i + 1; prev = key; }   // 완전 동점이면 같은 순위
+      const mine = row.seat === me ? ' result-me' : '';
+      return `<tr class="result-row${mine}">
+        <td>${rank}</td>
+        <td>${escapeHtml(row.player.name)}${row.seat === me ? ' <span class="result-tag">나</span>' : ''}</td>
+        <td><strong>${row.player.points}</strong></td>
+        <td>${row.player.cards.length}</td>
+        <td>${row.player.nobles.length}</td>
+      </tr>`;
+    })
+    .join('');
+
+  // 재대결은 온라인에서 방장만 시작할 수 있다.
+  const online = !!(window.NET && NET.mode === 'online');
+  const canRestart = !online || NET.role === 'host';
+  const againLabel = online ? '재대결' : '새 게임';
+  const again = canRestart
+    ? `<button class="result-primary" data-result="again">${againLabel}</button>`
+    : '<button class="result-primary" disabled>방장을 기다리는 중</button>';
+
+  return `
+    <h3 class="result-title">게임 종료</h3>
+    <p class="result-headline">${escapeHtml(G.winnerText)}</p>
+    <table class="result-table">
+      <thead><tr><th>순위</th><th>플레이어</th><th>점수</th><th>카드</th><th>귀족</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+    <div class="result-actions">
+      ${again}
+      <button data-result="close">닫기</button>
+    </div>`;
+}
+
 function renderModal() {
   const overlay = document.getElementById('modalOverlay');
   const modal = document.getElementById('modal');
@@ -607,6 +671,9 @@ function renderModal() {
           .map((n) => `<button class="noble-btn" data-noble="${n.id}">${nobleReqString(n)} (+${n.points}점)</button>`)
           .join('')}
       </div>`;
+    overlay.classList.remove('hidden');
+  } else if (G.gameOver && resultClosedFor !== G.gameId) {
+    modal.innerHTML = resultModalHtml();
     overlay.classList.remove('hidden');
   } else {
     overlay.classList.add('hidden');
@@ -661,6 +728,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (discardBtn) discardToken(discardBtn.dataset.discard);
     const nobleBtn = e.target.closest('[data-noble]');
     if (nobleBtn) chooseNoble(nobleBtn.dataset.noble);
+    const resultBtn = e.target.closest('[data-result]');
+    if (resultBtn) {
+      // 재대결은 새 판이 시작되며 팝업이 저절로 닫힌다(gameOver가 풀린다).
+      if (resultBtn.dataset.result === 'again') onNewGameClick();
+      else closeResultModal();
+    }
   });
 
   newGame();
