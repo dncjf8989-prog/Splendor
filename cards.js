@@ -27,20 +27,25 @@ const TIER1_PATTERNS = [
   { points: 1, cost: { 3: 4 } },
 ];
 
+// 티어2도 같은 이유로 한 색 최대 4개까지만 받는다. (예전의 5~6개짜리
+// 단색 카드는 보드에 깔려도 3~4판에 한 번꼴로만 팔렸다)
 const TIER2_PATTERNS = [
   { points: 1, cost: { 1: 3, 2: 2, 3: 2 } },
   { points: 1, cost: { 1: 2, 2: 2, 4: 3 } },
   { points: 1, cost: { 1: 3, 3: 3 } },
-  { points: 2, cost: { 2: 5 } },
-  { points: 2, cost: { 1: 5, 3: 3 } },
-  { points: 3, cost: { 3: 6 } },
+  { points: 2, cost: { 2: 4, 3: 2 } },
+  { points: 2, cost: { 1: 4, 2: 2, 3: 2 } },
+  { points: 3, cost: { 1: 2, 2: 4, 3: 2 } },
 ];
 
+// 티어3는 한 색에 비용이 몰리면(6~7개) 실전에서 살 수가 없다. 은행에 같은 색
+// 토큰이 4~7개뿐이라 카드 보너스를 그 색으로만 4~5장 쌓아야 하기 때문이다.
+// 그래서 한 색 최대 4개로 묶고 3~4색에 고르게 퍼뜨린다. 총액은 10~12.
 const TIER3_PATTERNS = [
-  { points: 3, cost: { 1: 3, 2: 3, 3: 5, 4: 3 } },
-  { points: 4, cost: { 2: 7 } },
-  { points: 4, cost: { 1: 6, 2: 3, 4: 3 } },
-  { points: 5, cost: { 3: 7, 4: 3 } },
+  { points: 3, cost: { 1: 2, 2: 3, 3: 3, 4: 2 } },
+  { points: 4, cost: { 1: 4, 2: 4, 3: 2 } },
+  { points: 4, cost: { 1: 2, 2: 4, 3: 4 } },
+  { points: 5, cost: { 1: 2, 2: 4, 3: 4, 4: 2 } },
 ];
 
 function buildDeck(patterns, count, pickPattern) {
