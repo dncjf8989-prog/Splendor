@@ -842,3 +842,45 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   font-weight: 700;
 }
 .result-primary:disabled { font-weight: 400; }
+
+/* ============ 전적: 인원수 탭 ============ */
+.stats-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+.stats-tab {
+  padding: 6px 14px;
+  font-size: 13px;
+  border-radius: 999px;
+}
+.stats-tab.active {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.stats-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.stats-chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  font-size: 11px;
+  color: var(--muted);
+}
+.stats-chip strong { color: var(--text); }
+
+.stats-hint {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
