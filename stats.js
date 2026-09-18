@@ -258,12 +258,11 @@ function renderStatsPanel() {
     if (rows) byCount = `<div class="stats-chips">${rows}</div>`;
   }
 
+  // 옛 상대별 기록(legacy)은 일부러 더하지 않는다. 그 값은 판 전체 결과를 상대
+  // 모두에게 똑같이 적던 시절의 것이라, 3~4인에서 함께 진 상대에게도 패로
+  // 남아 있다. 전체 승패(totals)는 판 단위로 맞게 셌으므로 그대로 합산한다.
   const opponents = Object.entries(s.opponents)
-    .map(([key, rec]) => {
-      const counts = statsSum(rec.counts, f);
-      if (f === 'all') statsAddInto(counts, rec.legacy || statsBlank());
-      return { key, name: rec.name, ...counts };
-    })
+    .map(([key, rec]) => ({ key, name: rec.name, ...statsSum(rec.counts, f) }))
     .filter((o) => o.w + o.l + o.d > 0)
     .sort((a, b) => b.w + b.l + b.d - (a.w + a.l + a.d));
 
@@ -286,8 +285,17 @@ function renderStatsPanel() {
   const legacyTotal = ['single', 'online'].reduce((n, m) => n + s.legacy[m].w + s.legacy[m].l + s.legacy[m].d, 0);
   const legacyNote =
     f === 'all' && legacyTotal
-      ? `<span class="stats-note">이 중 ${legacyTotal}전은 인원수를 나누기 전에 쌓인 기록이라 인원별 집계에는 빠져 있습니다.</span>`
+      ? `<span class="stats-note">전체 ${legacyTotal}전은 인원수를 나누기 전에 쌓인 기록이라 인원별 집계에는 빠져 있습니다.</span>`
       : '';
+
+  // 옛 상대별 기록이 남아 있으면 왜 표에서 빠졌는지 밝힌다.
+  const oppLegacy = Object.values(s.opponents).reduce((n, rec) => {
+    const lg = rec.legacy || statsBlank();
+    return n + lg.w + lg.l + lg.d;
+  }, 0);
+  const oppNote = oppLegacy
+    ? `<div class="stats-warn">예전 ${oppLegacy}전은 상대별 집계에서 뺐습니다. 그때는 3~4인에서 판을 지면 함께 진 상대에게도 패로 적혀, 실제로 이긴 상대에게 패가 남아 있었습니다.</div>`
+    : '';
 
   el.innerHTML = `
     <div class="stats-name-row">
@@ -311,6 +319,7 @@ function renderStatsPanel() {
 
     <div class="stats-section-label">상대별 전적<span class="stats-hint">나와 그 상대의 순위만 비교합니다</span></div>
     <table class="stats-table"><tbody>${oppRows}</tbody></table>
+    ${oppNote}
 
     <div class="stats-footer">
       <span class="stats-note">전적은 이 브라우저에만 저장되며, 게임 결과로만 갱신됩니다. 기기나 브라우저를 바꾸면 따로 쌓입니다.</span>

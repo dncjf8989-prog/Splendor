@@ -884,3 +884,14 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   font-weight: 400;
   color: var(--muted);
 }
+
+.stats-warn {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--win-bg);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
