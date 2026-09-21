@@ -1,8 +1,8 @@
 // 스플렌더 라이트 데모 - 카드/귀족 데이터
-// 2~4인을 모두 지원하기 위해 40/30/30장(총 100장)으로 구성했습니다.
-// 티어3는 모양을 6가지로 늘리느라 30장입니다. (색 5가지 x 패턴 6가지)
-// 실제 제품의 카드 구성을 그대로 복제하지 않고, 색·비용·점수 밸런스만
-// 데모용으로 재구성한 자체 데이터입니다.
+// 시중 스플렌더 카드표를 그대로 옮긴 데이터입니다. 40/30/20장(총 90장).
+// 색깔마다 카드가 달라 패턴을 색만 돌려 찍지 않고 한 장씩 적습니다.
+// 자기 색을 비용으로 요구하는 카드가 있는데, 원본이 그렇습니다.
+// 색깔별 총 수요는 티어1 33 / 티어2 41 / 티어3 43으로 각각 균등합니다.
 
 const GEMS = ['white', 'blue', 'green', 'red', 'black'];
 const GEM_LABEL = {
@@ -14,17 +14,48 @@ const GEM_LABEL = {
   gold: '골드(조커)',
 };
 
-// 비용은 "그 카드가 생산하는 보석"에서 몇 칸 떨어진 색인지(1~4)로 적는다.
-// 같은 패턴을 색만 돌려가며 찍어내므로 색깔별 밸런스가 자동으로 맞는다.
-const TIER1_PATTERNS = [
-  { points: 0, cost: { 1: 1, 2: 1, 3: 1, 4: 1 } },
-  { points: 0, cost: { 1: 2, 2: 2 } },
-  { points: 0, cost: { 1: 1, 2: 1, 3: 1 } },
-  { points: 0, cost: { 2: 3 } },
-  { points: 0, cost: { 1: 2, 3: 1, 4: 1 } },
-  { points: 0, cost: { 1: 1, 3: 2, 4: 1 } },
-  { points: 0, cost: { 2: 1, 3: 1, 4: 2 } },
-  { points: 1, cost: { 3: 4 } },
+// 티어1 40장 (색깔당 8장: 0점 7장 + 1점 1장)
+const TIER1_CARDS = [
+  { gem: 'white', points: 0, cost: { red: 2, black: 1 } },
+  { gem: 'white', points: 0, cost: { blue: 3 } },
+  { gem: 'white', points: 0, cost: { blue: 1, green: 1, red: 1, black: 1 } },
+  { gem: 'white', points: 0, cost: { blue: 2, black: 2 } },
+  { gem: 'white', points: 0, cost: { blue: 1, green: 2, red: 1, black: 1 } },
+  { gem: 'white', points: 0, cost: { blue: 2, green: 2, black: 1 } },
+  { gem: 'white', points: 0, cost: { white: 3, blue: 1, black: 1 } },
+  { gem: 'white', points: 1, cost: { green: 4 } },
+  { gem: 'blue', points: 0, cost: { white: 1, black: 2 } },
+  { gem: 'blue', points: 0, cost: { black: 3 } },
+  { gem: 'blue', points: 0, cost: { white: 1, green: 1, red: 1, black: 1 } },
+  { gem: 'blue', points: 0, cost: { green: 2, black: 2 } },
+  { gem: 'blue', points: 0, cost: { white: 1, green: 1, red: 2, black: 1 } },
+  { gem: 'blue', points: 0, cost: { white: 1, green: 2, red: 2 } },
+  { gem: 'blue', points: 0, cost: { blue: 1, green: 3, red: 1 } },
+  { gem: 'blue', points: 1, cost: { red: 4 } },
+  { gem: 'green', points: 0, cost: { white: 2, blue: 1 } },
+  { gem: 'green', points: 0, cost: { red: 3 } },
+  { gem: 'green', points: 0, cost: { white: 1, blue: 1, red: 1, black: 1 } },
+  { gem: 'green', points: 0, cost: { blue: 2, red: 2 } },
+  { gem: 'green', points: 0, cost: { white: 1, blue: 1, red: 1, black: 2 } },
+  { gem: 'green', points: 0, cost: { blue: 1, red: 2, black: 2 } },
+  { gem: 'green', points: 0, cost: { white: 1, blue: 3, green: 1 } },
+  { gem: 'green', points: 1, cost: { black: 4 } },
+  { gem: 'red', points: 0, cost: { blue: 2, green: 1 } },
+  { gem: 'red', points: 0, cost: { white: 3 } },
+  { gem: 'red', points: 0, cost: { white: 1, blue: 1, green: 1, black: 1 } },
+  { gem: 'red', points: 0, cost: { white: 2, red: 2 } },
+  { gem: 'red', points: 0, cost: { white: 2, blue: 1, green: 1, black: 1 } },
+  { gem: 'red', points: 0, cost: { white: 2, green: 1, black: 2 } },
+  { gem: 'red', points: 0, cost: { white: 1, red: 1, black: 3 } },
+  { gem: 'red', points: 1, cost: { white: 4 } },
+  { gem: 'black', points: 0, cost: { green: 2, red: 1 } },
+  { gem: 'black', points: 0, cost: { green: 3 } },
+  { gem: 'black', points: 0, cost: { white: 1, blue: 1, green: 1, red: 1 } },
+  { gem: 'black', points: 0, cost: { white: 2, green: 2 } },
+  { gem: 'black', points: 0, cost: { white: 1, blue: 2, green: 1, red: 1 } },
+  { gem: 'black', points: 0, cost: { white: 2, blue: 2, red: 1 } },
+  { gem: 'black', points: 0, cost: { green: 1, red: 3, black: 1 } },
+  { gem: 'black', points: 1, cost: { blue: 4 } },
 ];
 
 // ============ 티어2 / 티어3 ============
@@ -90,25 +121,6 @@ const TIER3_CARDS = [
   { gem: 'black', points: 4, cost: { green: 3, red: 6, black: 3 } },
   { gem: 'black', points: 5, cost: { red: 7, black: 3 } },
 ];
-
-function buildDeck(patterns, count, pickPattern) {
-  const cards = [];
-  for (let i = 0; i < count; i++) {
-    const gemIdx = i % GEMS.length;
-    const pattern = patterns[pickPattern(i, patterns.length)];
-    const cost = {};
-    for (const offset of Object.keys(pattern.cost)) {
-      cost[GEMS[(gemIdx + Number(offset)) % GEMS.length]] = pattern.cost[offset];
-    }
-    cards.push({ gem: GEMS[gemIdx], cost, points: pattern.points });
-  }
-  return cards;
-}
-
-// 색을 한 바퀴 돌 때마다 다음 패턴으로 넘어간다. (장수가 색 수의 배수일 때)
-const byGroup = (i, n) => Math.floor(i / GEMS.length) % n;
-
-const TIER1_CARDS = buildDeck(TIER1_PATTERNS, 40, byGroup);
 
 // 귀족은 두 색 4장씩 또는 세 색 3장씩을 요구한다. 인원이 늘면 등장 수도
 // 늘어나므로(2인 3장 ~ 4인 5장) 색깔별 수요가 고르게 퍼지도록 10종을 둔다.
