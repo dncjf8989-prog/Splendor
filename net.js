@@ -22,10 +22,33 @@ const NET = {
   errorMsg: '',
   opponents: [], // 상대 프로필 목록 - 상대전적 집계에 쓴다
   lobby: [], // 로비에 표시할 참가자 이름
+  timer: null, // 연결 대기 시간 제한
+  peerOpened: false, // 신호 서버까지는 닿았는지 (실패 원인 구분용)
 };
 // game.js는 window.NET으로 존재 여부를 확인하므로 전역 객체에 명시적으로 노출한다.
 // (top-level const는 window의 프로퍼티가 되지 않는다.)
 window.NET = NET;
+
+// PeerJS는 연결이 끝내 열리지 않아도 오류를 주지 않는 경우가 있다.
+// 회사·학교망처럼 WebRTC가 막힌 곳에서 흔하다. 그대로 두면 "연결하는 중..."에서
+// 영영 멈추므로 직접 시간을 잰다.
+const NET_TIMEOUT_MS = 15000;
+
+function netClearTimer() {
+  if (NET.timer) clearTimeout(NET.timer);
+  NET.timer = null;
+}
+
+function netFailAfterTimeout(getMsg) {
+  netClearTimer();
+  NET.timer = setTimeout(() => {
+    if (NET.status !== 'connecting' && NET.status !== 'creating') return;
+    netCleanupPeer();
+    NET.status = 'error';
+    NET.errorMsg = getMsg();
+    renderNetPanel();
+  }, NET_TIMEOUT_MS);
+}
 
 function netAvailable() {
   return typeof Peer !== 'undefined';
@@ -178,7 +201,10 @@ function netCreateRoom() {
   const peer = new Peer(PEER_ID_PREFIX + code);
   NET.peer = peer;
 
+  netFailAfterTimeout(() => '방을 여는 데 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+
   peer.on('open', () => {
+    netClearTimer();
     NET.status = 'waiting';
     netUpdateLobby();
   });
@@ -208,6 +234,7 @@ function netCreateRoom() {
   });
 
   peer.on('error', (err) => {
+    netClearTimer();
     if (err && err.type === 'unavailable-id') {
       peer.destroy();
       netCreateRoom(); // 코드 충돌 시 재시도
@@ -336,19 +363,31 @@ function netJoinRoom(rawCode) {
   NET.opponents = [];
   renderNetPanel();
 
+  NET.peerOpened = false;
   const peer = new Peer();
   NET.peer = peer;
 
+  // 신호 서버까지 닿았는지에 따라 안내를 달리 준다.
+  netFailAfterTimeout(() =>
+    NET.peerOpened
+      ? '방장과 직접 연결하지 못했습니다. 회사나 학교 네트워크에서는 막히는 경우가 있습니다. 휴대폰 테더링 같은 다른 네트워크에서 시도해 보세요.'
+      : '연결 서버에 닿지 못했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+
   peer.on('open', () => {
+    NET.peerOpened = true;
     const conn = peer.connect(PEER_ID_PREFIX + code, { reliable: true });
     NET.links = [{ conn, seat: null, profile: null }];
-    conn.on('open', () => netSendTo(conn, { type: 'hello', profile: netMyProfile() }));
+    conn.on('open', () => {
+      netClearTimer();
+      netSendTo(conn, { type: 'hello', profile: netMyProfile() });
+    });
     conn.on('data', netGuestHandle);
     conn.on('close', netGuestHostGone);
     conn.on('error', netGuestHostGone);
   });
 
   peer.on('error', (err) => {
+    netClearTimer();
     if (err && err.type === 'peer-unavailable') {
       NET.status = 'error';
       NET.errorMsg = '존재하지 않는 방 코드입니다.';
@@ -443,6 +482,7 @@ function netUpdateLobby() {
 // "나갑니다"를 보내자마자 닫으면 그 메시지가 전송되기 전에 끊겨서,
 // 상대가 자발적 퇴장인지 회선 장애인지 구분하지 못한다.
 function netCleanupPeer(delayClose) {
+  netClearTimer();
   const conns = NET.links.map((link) => link.conn);
   const peer = NET.peer;
   const closeAll = () => {
@@ -636,7 +676,11 @@ function renderNetPanelBody() {
   }
 
   if (NET.status === 'creating' || NET.status === 'connecting') {
-    el.innerHTML = `<div class="net-box">${NET.status === 'creating' ? '방을 만드는 중...' : '연결하는 중...'}</div>`;
+    el.innerHTML = `<div class="net-box">
+      <div>${NET.status === 'creating' ? '방을 만드는 중...' : '연결하는 중...'}</div>
+      <div class="net-sub">잠시만 기다려 주세요. 오래 걸리면 취소하고 다시 시도해 보세요.</div>
+      <button data-net-act="cancel">취소</button>
+    </div>`;
     return;
   }
 
@@ -709,6 +753,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (act === 'leave') netLeaveRequested();
     if (act === 'retry') netRetry();
+    if (act === 'cancel') netRetry();
     if (act === 'toSingle') netSwitchMode('single');
   });
 
