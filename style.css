@@ -725,8 +725,10 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .stats-note { font-size: 11px; color: var(--muted); flex: 1; min-width: 180px; }
 
 /* ============ 채팅 ============ */
+#bottomRow[hidden] { display: none; }
 #bottomRow {
   display: flex;
+  margin-top: 10px;
   flex-wrap: wrap;
   gap: 10px;
   align-items: stretch;

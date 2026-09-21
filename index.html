@@ -6,7 +6,7 @@
 <title>스플렌더 라이트</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260921f">
+<link rel="stylesheet" href="style.css?v=20260921g">
 </head>
 <body>
 <div id="app">
@@ -61,18 +61,20 @@
       <aside class="player-column" id="playerColRight"></aside>
     </div>
 
-    <div id="bottomRow">
-      <section id="log"></section>
+  </div>
 
-      <section id="chatPanel" hidden>
-        <h2 class="chat-title">채팅</h2>
-        <ul id="chatLog"></ul>
-        <div id="chatForm">
-          <input id="chatInput" type="text" maxlength="120" autocomplete="off" placeholder="대전이 시작되면 채팅할 수 있습니다" disabled>
-          <button id="chatSendBtn" type="button" disabled>전송</button>
-        </div>
-      </section>
-    </div>
+  <!-- 게임 영역 밖에 둔다. 대기방에서는 판이 없어도 채팅은 써야 하기 때문이다. -->
+  <div id="bottomRow" hidden>
+    <section id="log"></section>
+
+    <section id="chatPanel" hidden>
+      <h2 class="chat-title">채팅</h2>
+      <ul id="chatLog"></ul>
+      <div id="chatForm">
+        <input id="chatInput" type="text" maxlength="120" autocomplete="off" placeholder="대전에 참여하면 채팅할 수 있습니다" disabled>
+        <button id="chatSendBtn" type="button" disabled>전송</button>
+      </div>
+    </section>
   </div>
 </div>
 
@@ -91,11 +93,11 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
-<script src="cards.js?v=20260921f"></script>
-<script src="game.js?v=20260921f"></script>
-<script src="ai.js?v=20260921f"></script>
-<script src="stats.js?v=20260921f"></script>
-<script src="chat.js?v=20260921f"></script>
-<script src="net.js?v=20260921f"></script>
+<script src="cards.js?v=20260921g"></script>
+<script src="game.js?v=20260921g"></script>
+<script src="ai.js?v=20260921g"></script>
+<script src="stats.js?v=20260921g"></script>
+<script src="chat.js?v=20260921g"></script>
+<script src="net.js?v=20260921g"></script>
 </body>
 </html>

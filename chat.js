@@ -12,8 +12,10 @@ const CHAT = {
 };
 window.CHAT = CHAT;
 
+// 방에 들어와 있으면(대기방 포함) 채팅할 수 있다.
 function chatAvailable() {
-  return !!(window.NET && NET.mode === 'online' && NET.status === 'active');
+  if (!window.NET || NET.mode !== 'online') return false;
+  return NET.status === 'waiting' || NET.status === 'active';
 }
 
 function chatClean(text) {
@@ -50,7 +52,8 @@ function chatSend(raw) {
 }
 
 function chatMyName() {
-  if (G && G.players && G.players[NET.seat]) return G.players[NET.seat].name;
+  // 대기방에서는 아직 자리 이름이 정해지지 않았으므로 닉네임을 쓴다.
+  if (NET.status === 'active' && G && G.players && G.players[NET.seat]) return G.players[NET.seat].name;
   return typeof statsMyDisplayName === 'function' ? statsMyDisplayName() : '나';
 }
 
@@ -92,7 +95,7 @@ function renderChat() {
   const usable = chatAvailable();
   if (input) {
     input.disabled = !usable;
-    input.placeholder = usable ? '메시지를 입력하세요' : '대전이 시작되면 채팅할 수 있습니다';
+    input.placeholder = usable ? '메시지를 입력하세요' : '대전에 참여하면 채팅할 수 있습니다';
   }
   if (btn) btn.disabled = !usable;
 }

@@ -271,8 +271,7 @@ function netHostStartGame() {
   });
   logFirstPlayer();
   NET.status = 'active';
-  chatClear();
-  chatSystem('대전이 시작되었습니다. 자유롭게 대화하세요.');
+  chatSystem('대전이 시작되었습니다.');
   const profiles = netProfileList();
   netSetOpponentsFrom(profiles);
   render();
@@ -382,8 +381,7 @@ function netGuestHandle(msg) {
   if (msg.type === 'init') {
     NET.seat = msg.seat;
     NET.status = 'active';
-    chatClear();
-    chatSystem('대전이 시작되었습니다. 자유롭게 대화하세요.');
+    chatSystem('대전이 시작되었습니다.');
     netSetOpponentsFrom(msg.profiles);
     netApplyRemoteState(msg.state);
     renderNetPanel();
@@ -556,12 +554,21 @@ function updateModeTabs() {
   onlineBtn.classList.toggle('active', NET.mode === 'online');
   const gameArea = document.getElementById('gameArea');
   const netPanel = document.getElementById('netPanel');
+  const bottomRow = document.getElementById('bottomRow');
+  const log = document.getElementById('log');
   if (NET.mode === 'single') {
     gameArea.hidden = false;
     netPanel.hidden = true;
+    if (bottomRow) bottomRow.hidden = false;
+    if (log) log.hidden = false;
   } else {
     netPanel.hidden = false;
-    gameArea.hidden = NET.status !== 'active';
+    const inGame = NET.status === 'active';
+    gameArea.hidden = !inGame;
+    // 대기방에서도 채팅은 써야 하므로 아래 줄은 로비부터 띄운다.
+    if (bottomRow) bottomRow.hidden = !(inGame || NET.status === 'waiting');
+    // 진행 기록은 판이 있을 때만 의미가 있다.
+    if (log) log.hidden = !inGame;
   }
   updateCountPicker();
   updateNewGameButton();
