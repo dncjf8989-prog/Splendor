@@ -53,11 +53,12 @@ function statsMyDisplayName() {
 }
 
 // ============ 전적 데이터 ============
-// v2: 인원수(2/3/4인)별로 나눠 센다.
-//   totals[mode][인원]        = {w,l,d}   내 판 결과
-//   opponents[키].counts[인원] = {w,l,d}   그 상대와의 1:1 비교
-// v1에는 인원 정보가 없어서 되살릴 수 없으므로 legacy로 따로 보관해 보여준다.
-const STATS_VERSION = 2;
+// v3: 전적을 새로 시작한다. 인원수(2/3/4인)별로 나눠 세고,
+//     상대별 전적은 1:1(2인) 대전에서만 남긴다.
+//   totals[mode][인원] = {w,l,d}   판 승패 (이긴 사람만 승, 나머지는 패)
+//   opponents[키]      = {name,last,w,l,d}   2인 대전 전용
+// v1/v2 기록은 집계 규칙이 달라 이어붙일 수 없으므로 버리고 새로 시작한다.
+const STATS_VERSION = 3;
 
 function statsBlank() {
   return { w: 0, l: 0, d: 0 };
@@ -68,43 +69,17 @@ function statsEmpty() {
     version: STATS_VERSION,
     lastRecordedGameId: null,
     totals: { single: {}, online: {} },
-    legacy: { single: statsBlank(), online: statsBlank() },
     opponents: {},
   };
 }
 
 const statsNum = (v) => (Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
 
-// 인원을 모르는 옛 기록은 legacy로 옮긴다. 지우지는 않는다.
-function statsMigrateV1(old) {
-  const s = statsEmpty();
-  if (old && old.totals) {
-    ['single', 'online'].forEach((m) => {
-      const t = old.totals[m];
-      if (t) s.legacy[m] = { w: statsNum(t.w), l: statsNum(t.l), d: statsNum(t.d) };
-    });
-  }
-  if (old && old.opponents) {
-    Object.entries(old.opponents).forEach(([key, rec]) => {
-      if (!rec) return;
-      s.opponents[key] = {
-        name: rec.name || '상대',
-        last: statsNum(rec.last),
-        counts: {},
-        legacy: { w: statsNum(rec.w), l: statsNum(rec.l), d: statsNum(rec.d) },
-      };
-    });
-  }
-  if (old && typeof old.lastRecordedGameId === 'string') s.lastRecordedGameId = old.lastRecordedGameId;
-  return s;
-}
-
 function statsLoad() {
   const raw = statsReadJson(STATS_KEY, null);
   if (!raw || typeof raw !== 'object') return statsEmpty();
-  if (raw.version === STATS_VERSION && raw.totals && raw.opponents && raw.legacy) return raw;
-  if (raw.totals && raw.opponents) return statsMigrateV1(raw); // v1 기록
-  return statsEmpty();
+  if (raw.version === STATS_VERSION && raw.totals && raw.opponents) return raw;
+  return statsEmpty(); // 옛 판본은 버린다
 }
 
 function statsSave(s) {
@@ -129,18 +104,15 @@ function statsSum(map, filter) {
 }
 
 // ============ 결과 판정 및 기록 ============
-function statsMySeat() {
-  return window.NET && NET.mode === 'online' ? NET.seat : HUMAN_SEAT;
-}
-
 // endGame()과 같은 우열 기준: 점수 -> 개발 카드가 적은 쪽.
 function statsBeats(a, b) {
   return a.points !== b.points ? a.points > b.points : a.cards.length < b.cards.length;
 }
 
-// 내 판 전체 결과 (전원과 비교). 전체 전적에 쓴다.
+// 판 승패. 이긴 사람만 승이고 나머지는 전부 패다.
+// (맨 위에서 점수와 카드 수까지 똑같이 겹치면 그 인원은 무승부)
 function statsMyResult() {
-  const mySeat = statsMySeat();
+  const mySeat = window.NET && NET.mode === 'online' ? NET.seat : HUMAN_SEAT;
   if (mySeat == null || !G || !G.players[mySeat]) return null;
   const me = G.players[mySeat];
   const others = G.players.filter((_, i) => i !== mySeat);
@@ -149,25 +121,15 @@ function statsMyResult() {
   return 'w';
 }
 
-// 나 vs 그 상대 1:1 비교. 3~4인에서 A가 우승했다고 해서 B와 C가 서로에게
-// 진 것은 아니므로, 상대별 전적은 판 결과가 아니라 둘 사이의 순위로 매긴다.
-function statsResultAgainst(oppSeat) {
-  const mySeat = statsMySeat();
-  const me = G && G.players[mySeat];
-  const opp = G && G.players[oppSeat];
-  if (!me || !opp) return null;
-  if (me.points !== opp.points) return me.points > opp.points ? 'w' : 'l';
-  if (me.cards.length !== opp.cards.length) return me.cards.length < opp.cards.length ? 'w' : 'l';
-  return 'd';
-}
-
-// 그 판에 함께한 상대들. 온라인은 자리 번호까지 들고 온다.
+// 1:1 상대. 3인 이상에서는 상대별 전적을 남기지 않으므로 빈 배열이다.
 function statsOpponents() {
-  if (!window.NET || NET.mode !== 'online') return [{ key: 'AI', name: 'AI', seat: null }];
+  const count = G && (G.playerCount || G.players.length);
+  if (count !== 2) return [];
+  if (!window.NET || NET.mode !== 'online') return [{ key: 'AI', name: 'AI' }];
   const list = (NET.opponents || [])
     .filter((o) => o && o.id)
-    .map((o) => ({ key: o.id, name: o.name || '상대', seat: Number.isInteger(o.seat) ? o.seat : null }));
-  return list.length ? list : [{ key: 'unknown', name: '알 수 없는 상대', seat: null }];
+    .map((o) => ({ key: o.id, name: o.name || '상대' }));
+  return list.length ? list : [{ key: 'unknown', name: '알 수 없는 상대' }];
 }
 
 // 게임이 끝날 때 한 번만 기록한다. G.gameId는 온라인에서도 양쪽이 공유하므로
@@ -189,14 +151,11 @@ function maybeRecordResult() {
 
   statsBucket(s.totals[mode], count)[result] += 1;
 
+  // 2인 대전에서는 판 승패가 곧 그 상대와의 승패다.
   statsOpponents().forEach((opp) => {
-    if (!s.opponents[opp.key]) {
-      s.opponents[opp.key] = { name: opp.name, last: 0, counts: {}, legacy: statsBlank() };
-    }
+    if (!s.opponents[opp.key]) s.opponents[opp.key] = { name: opp.name, last: 0, w: 0, l: 0, d: 0 };
     const rec = s.opponents[opp.key];
-    // 싱글은 AI 전체를 한 상대로 보므로 판 결과를 그대로 쓴다.
-    const pair = opp.seat != null && G.players[opp.seat] ? statsResultAgainst(opp.seat) : null;
-    statsBucket(rec.counts, count)[pair || result] += 1;
+    rec[result] += 1;
     rec.name = opp.name; // 상대가 닉네임을 바꿨으면 최신 이름으로
     rec.last = Date.now();
   });
@@ -232,11 +191,6 @@ function renderStatsPanel() {
   const single = statsSum(s.totals.single, f);
   const online = statsSum(s.totals.online, f);
   const all = statsAddInto(statsAddInto(statsBlank(), single), online);
-  // 인원을 모르는 옛 기록은 '전체'에서만 합산한다.
-  if (f === 'all') {
-    statsAddInto(all, s.legacy.single);
-    statsAddInto(all, s.legacy.online);
-  }
   const allSum = statsSummary(all);
 
   const tabs = [['all', '전체'], ['2', '2인'], ['3', '3인'], ['4', '4인']]
@@ -246,7 +200,7 @@ function renderStatsPanel() {
   // 인원별 한 줄 요약 (전체 탭에서만)
   let byCount = '';
   if (f === 'all') {
-    const rows = ['2', '3', '4']
+    const chips = ['2', '3', '4']
       .map((n) => {
         const rec = statsAddInto(statsSum(s.totals.single, n), statsSum(s.totals.online, n));
         const sum = statsSummary(rec);
@@ -255,47 +209,36 @@ function renderStatsPanel() {
       })
       .filter(Boolean)
       .join('');
-    if (rows) byCount = `<div class="stats-chips">${rows}</div>`;
+    if (chips) byCount = `<div class="stats-chips">${chips}</div>`;
   }
 
-  // 옛 상대별 기록(legacy)은 일부러 더하지 않는다. 그 값은 판 전체 결과를 상대
-  // 모두에게 똑같이 적던 시절의 것이라, 3~4인에서 함께 진 상대에게도 패로
-  // 남아 있다. 전체 승패(totals)는 판 단위로 맞게 셌으므로 그대로 합산한다.
-  const opponents = Object.entries(s.opponents)
-    .map(([key, rec]) => ({ key, name: rec.name, ...statsSum(rec.counts, f) }))
-    .filter((o) => o.w + o.l + o.d > 0)
-    .sort((a, b) => b.w + b.l + b.d - (a.w + a.l + a.d));
+  // 상대별 전적은 2인 기록뿐이므로 3인/4인 탭에서는 표 대신 안내를 둔다.
+  let oppSection;
+  if (f === '3' || f === '4') {
+    oppSection = `<div class="stats-warn">${f}인 대전은 상대별 전적을 남기지 않습니다. 이긴 사람만 승, 나머지는 패로 집계합니다.</div>`;
+  } else {
+    const opponents = Object.entries(s.opponents)
+      .map(([key, rec]) => ({ key, name: rec.name, w: statsNum(rec.w), l: statsNum(rec.l), d: statsNum(rec.d) }))
+      .filter((o) => o.w + o.l + o.d > 0)
+      .sort((a, b) => b.w + b.l + b.d - (a.w + a.l + a.d));
 
-  const oppRows = opponents.length
-    ? opponents
-        .map((o) => {
-          const sum = statsSummary(o);
-          return `<tr>
-            <td class="stats-name">${o.key === 'AI' ? '🤖 AI' : escapeHtml(o.name)}</td>
-            <td>${sum.total}전</td>
-            <td class="stats-w">${o.w}승</td>
-            <td class="stats-l">${o.l}패</td>
-            <td>${o.d}무</td>
-            <td class="stats-rate">${sum.rate}%</td>
-          </tr>`;
-        })
-        .join('')
-    : `<tr><td colspan="6" class="stats-empty">${f === 'all' ? '아직 기록이 없습니다.' : `${f}인 기록이 아직 없습니다.`}</td></tr>`;
-
-  const legacyTotal = ['single', 'online'].reduce((n, m) => n + s.legacy[m].w + s.legacy[m].l + s.legacy[m].d, 0);
-  const legacyNote =
-    f === 'all' && legacyTotal
-      ? `<span class="stats-note">전체 ${legacyTotal}전은 인원수를 나누기 전에 쌓인 기록이라 인원별 집계에는 빠져 있습니다.</span>`
-      : '';
-
-  // 옛 상대별 기록이 남아 있으면 왜 표에서 빠졌는지 밝힌다.
-  const oppLegacy = Object.values(s.opponents).reduce((n, rec) => {
-    const lg = rec.legacy || statsBlank();
-    return n + lg.w + lg.l + lg.d;
-  }, 0);
-  const oppNote = oppLegacy
-    ? `<div class="stats-warn">예전 ${oppLegacy}전은 상대별 집계에서 뺐습니다. 그때는 3~4인에서 판을 지면 함께 진 상대에게도 패로 적혀, 실제로 이긴 상대에게 패가 남아 있었습니다.</div>`
-    : '';
+    const oppRows = opponents.length
+      ? opponents
+          .map((o) => {
+            const sum = statsSummary(o);
+            return `<tr>
+              <td class="stats-name">${o.key === 'AI' ? '🤖 AI' : escapeHtml(o.name)}</td>
+              <td>${sum.total}전</td>
+              <td class="stats-w">${o.w}승</td>
+              <td class="stats-l">${o.l}패</td>
+              <td>${o.d}무</td>
+              <td class="stats-rate">${sum.rate}%</td>
+            </tr>`;
+          })
+          .join('')
+      : `<tr><td colspan="6" class="stats-empty">아직 1:1 기록이 없습니다.</td></tr>`;
+    oppSection = `<table class="stats-table"><tbody>${oppRows}</tbody></table>`;
+  }
 
   el.innerHTML = `
     <div class="stats-name-row">
@@ -317,13 +260,11 @@ function renderStatsPanel() {
       ${byCount}
     </div>
 
-    <div class="stats-section-label">상대별 전적<span class="stats-hint">나와 그 상대의 순위만 비교합니다</span></div>
-    <table class="stats-table"><tbody>${oppRows}</tbody></table>
-    ${oppNote}
+    <div class="stats-section-label">상대별 전적<span class="stats-hint">1:1(2인) 대전만 기록합니다</span></div>
+    ${oppSection}
 
     <div class="stats-footer">
       <span class="stats-note">전적은 이 브라우저에만 저장되며, 게임 결과로만 갱신됩니다. 기기나 브라우저를 바꾸면 따로 쌓입니다.</span>
-      ${legacyNote}
     </div>`;
 }
 

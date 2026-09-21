@@ -104,16 +104,9 @@ function netProfileList() {
 }
 
 function netSetOpponentsFrom(profiles) {
-  // 자리 번호를 함께 남긴다. 상대별 전적을 1:1로 매기려면 그 상대가 몇 번
-  // 자리였는지 알아야 한다. (자리는 방장이 보내준 값이라 범위를 확인한다)
   NET.opponents = (profiles || [])
     .filter((p) => p && p.seat !== NET.seat)
-    .map((p) => {
-      const clean = netSanitizeProfile(p);
-      if (!clean) return null;
-      if (Number.isInteger(p.seat) && p.seat >= 0 && p.seat < 4) clean.seat = p.seat;
-      return clean;
-    })
+    .map((p) => netSanitizeProfile(p))
     .filter(Boolean);
 }
 
