@@ -453,6 +453,28 @@ function netCleanupPeer() {
   NET.lobby = [];
 }
 
+// 대전 중에 나가면 그 판은 패배로 남는다. 나가기 전에 한 번 묻는다.
+// 로비에서 나가거나 판이 이미 끝났으면 그냥 나간다.
+function netLeavingCostsGame() {
+  return NET.mode === 'online' && NET.status === 'active' && G && !G.gameOver;
+}
+
+function netLeaveRequested() {
+  if (!netLeavingCostsGame()) {
+    netLeaveRoom();
+    return;
+  }
+  askConfirm({
+    title: '대전에서 나가시겠습니까?',
+    body: '진행 중인 판은 패배로 기록됩니다.',
+    okLabel: '나가기 (패배 처리)',
+    onOk: () => {
+      statsRecordForfeit();
+      netLeaveRoom();
+    },
+  });
+}
+
 function netLeaveRoom() {
   if (NET.role === 'host') netBroadcast({ type: 'peerLeft', name: netMyProfile().name });
   else netSendToHost({ type: 'left' });
@@ -473,6 +495,23 @@ function netRetry() {
 
 function netSwitchMode(mode) {
   if (mode === NET.mode) return;
+  // 대전 중에 싱글로 넘어가는 것도 나가는 것과 같다. 똑같이 묻는다.
+  if (mode === 'single' && netLeavingCostsGame()) {
+    askConfirm({
+      title: '싱글 플레이로 넘어가시겠습니까?',
+      body: '진행 중인 대전은 패배로 기록됩니다.',
+      okLabel: '넘어가기 (패배 처리)',
+      onOk: () => {
+        statsRecordForfeit();
+        netApplyMode(mode);
+      },
+    });
+    return;
+  }
+  netApplyMode(mode);
+}
+
+function netApplyMode(mode) {
   if (window.AI) clearTimeout(AI.timer);
   if (mode === 'single') {
     if (NET.mode === 'online') netLeaveRoom();
@@ -640,7 +679,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const input = document.getElementById('joinCodeInput');
       netJoinRoom(input ? input.value : '');
     }
-    if (act === 'leave') netLeaveRoom();
+    if (act === 'leave') netLeaveRequested();
     if (act === 'retry') netRetry();
     if (act === 'toSingle') netSwitchMode('single');
   });

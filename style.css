@@ -895,3 +895,19 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   font-size: 11px;
   line-height: 1.5;
 }
+
+/* ============ 확인 팝업 ============ */
+.confirm-title { margin: 0 0 8px; font-size: 17px; }
+.confirm-body {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.confirm-danger {
+  background: var(--gem-red);
+  border-color: var(--gem-red);
+  color: #fff;
+  font-weight: 700;
+}
+.confirm-danger:hover { filter: brightness(1.08); }

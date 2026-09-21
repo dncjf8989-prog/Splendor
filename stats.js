@@ -166,6 +166,34 @@ function maybeRecordResult() {
   renderStatsPanel();
 }
 
+// 온라인 대전 도중 스스로 나간 경우. 그 판을 패배로 남긴다.
+// 이미 끝난 판은 정상 집계(maybeRecordResult)를 따르므로 건드리지 않는다.
+function statsRecordForfeit() {
+  if (!G || !G.gameId || G.gameOver) return false;
+  if (!window.NET || NET.mode !== 'online') return false;
+
+  const s = statsLoad();
+  if (STATS.lastRecordedGameId === G.gameId || s.lastRecordedGameId === G.gameId) return false;
+
+  const count = G.playerCount || G.players.length;
+  statsBucket(s.totals.online, count).l += 1;
+
+  // 2인이면 그 상대에게도 패로 남는다. (3인 이상은 상대별 전적을 쓰지 않는다)
+  statsOpponents().forEach((opp) => {
+    if (!s.opponents[opp.key]) s.opponents[opp.key] = { name: opp.name, last: 0, w: 0, l: 0, d: 0 };
+    const rec = s.opponents[opp.key];
+    rec.l += 1;
+    rec.name = opp.name;
+    rec.last = Date.now();
+  });
+  s.lastRecordedGameId = G.gameId;
+
+  STATS.lastRecordedGameId = G.gameId;
+  statsSave(s);
+  renderStatsPanel();
+  return true;
+}
+
 // ============ 렌더링 ============
 let statsFilter = 'all'; // 'all' | '2' | '3' | '4'
 

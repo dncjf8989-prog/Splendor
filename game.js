@@ -583,6 +583,32 @@ function renderLog() {
   el.innerHTML = `<div class="log-title">진행 기록</div><ul>${G.logs.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>`;
 }
 
+// ============ 확인 팝업 ============
+// 되돌릴 수 없는 행동(대전 중 나가기 등) 전에 한 번 묻는다.
+let pendingConfirm = null;
+
+function askConfirm(opts) {
+  pendingConfirm = opts;
+  render();
+}
+
+function resolveConfirm(ok) {
+  const c = pendingConfirm;
+  pendingConfirm = null;
+  render();
+  if (ok && c && typeof c.onOk === 'function') c.onOk();
+}
+
+function confirmModalHtml() {
+  return `
+    <h3 class="confirm-title">${escapeHtml(pendingConfirm.title)}</h3>
+    <p class="confirm-body">${escapeHtml(pendingConfirm.body)}</p>
+    <div class="result-actions">
+      <button class="confirm-danger" data-confirm="ok">${escapeHtml(pendingConfirm.okLabel || '확인')}</button>
+      <button data-confirm="cancel">취소</button>
+    </div>`;
+}
+
 // ============ 종료 팝업 ============
 // 한 판에 한 번만 띄운다. 닫은 판의 gameId를 기억해 다시 그려도 열리지 않게 한다.
 // (온라인은 턴마다 G가 통째로 덮어써지므로 G 안에 두면 닫아도 다시 열린다)
@@ -650,7 +676,10 @@ function resultModalHtml() {
 function renderModal() {
   const overlay = document.getElementById('modalOverlay');
   const modal = document.getElementById('modal');
-  if (G.discardState) {
+  if (pendingConfirm) {
+    modal.innerHTML = confirmModalHtml();
+    overlay.classList.remove('hidden');
+  } else if (G.discardState) {
     const { player, needed } = G.discardState;
     modal.innerHTML = `
       <h3>${escapeHtml(player.name)}의 토큰이 10개를 초과했습니다.</h3>
@@ -728,6 +757,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (discardBtn) discardToken(discardBtn.dataset.discard);
     const nobleBtn = e.target.closest('[data-noble]');
     if (nobleBtn) chooseNoble(nobleBtn.dataset.noble);
+    const confirmBtn = e.target.closest('[data-confirm]');
+    if (confirmBtn) {
+      resolveConfirm(confirmBtn.dataset.confirm === 'ok');
+      return;
+    }
     const resultBtn = e.target.closest('[data-result]');
     if (resultBtn) {
       // 재대결은 새 판이 시작되며 팝업이 저절로 닫힌다(gameOver가 풀린다).
