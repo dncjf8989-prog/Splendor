@@ -59,7 +59,7 @@ function newPlayer(name) {
 }
 
 // startIndex를 주면 그 자리가 선공이 된다. 온라인 대전은 방장이 무작위로
-// 뽑아 넘기고, 싱글 플레이는 늘 사람(0번 자리)이 먼저 둔다.
+// 뽑아 넘겨주고, 싱글 플레이는 여기서 직접 뽑는다.
 function newGame(playerCount, startIndex) {
   const count = RULES[playerCount] ? playerCount : currentPlayerCount();
   const rules = RULES[count];
@@ -73,10 +73,16 @@ function newGame(playerCount, startIndex) {
   const bank = { gold: rules.gold };
   GEMS.forEach((c) => (bank[c] = rules.tokens));
 
-  const first = Number.isInteger(startIndex) ? ((startIndex % count) + count) % count : 0;
-
   const myName = typeof statsMyDisplayName === 'function' ? statsMyDisplayName() : '플레이어 1';
   const isSingle = !window.NET || NET.mode === 'single';
+
+  // 선공은 매 판 무작위. 온라인에서 자리를 안 받은 경우는 아직 대전이 시작되기
+  // 전의 빈 판이라 0번으로 둔다.
+  const first = Number.isInteger(startIndex)
+    ? ((startIndex % count) + count) % count
+    : isSingle
+      ? Math.floor(Math.random() * count)
+      : 0;
   const players = [];
   for (let i = 0; i < count; i++) {
     if (i === 0) players.push(newPlayer(myName));
@@ -102,7 +108,10 @@ function newGame(playerCount, startIndex) {
   };
 
   log(`${count}인 게임을 시작합니다. (목표 ${rules.winPoints}점)`);
+  if (isSingle) logFirstPlayer(); // 온라인은 이름을 채운 뒤 방장이 따로 남긴다
   render();
+  // 선공이 AI면 곧바로 두게 한다. (첫 턴은 notifyNet을 거치지 않는다)
+  if (typeof aiScheduleTurn === 'function') aiScheduleTurn();
 }
 
 // 화면에 설정된 인원수. 게임이 진행 중이면 그 게임의 인원을 따른다.

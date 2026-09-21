@@ -258,7 +258,7 @@ function netHostHandle(conn, msg) {
   }
 
   if (msg.type === 'left') {
-    netHostLinkGone(conn);
+    netHostLinkGone(conn, true);
   }
 }
 
@@ -282,19 +282,26 @@ function netHostStartGame() {
   renderNetPanel();
 }
 
-function netHostLinkGone(conn) {
+// left: 상대가 스스로 나갔는지(true) 아니면 그냥 연결이 끊겼는지(false).
+// 회선 장애면 양쪽 다 "상대가 사라졌다"로 보이므로 둘 다 부전승을 먹는다.
+// 그래서 스스로 나갔다고 알려온 경우에만 승으로 친다.
+function netHostLinkGone(conn, left) {
   const idx = NET.links.findIndex((l) => l.conn === conn);
   if (idx < 0) return;
   const gone = NET.links[idx];
   NET.links.splice(idx, 1);
 
   if (NET.status === 'active') {
+    const who = gone.profile ? gone.profile.name : '참가자';
     // 진행 중에 한 명이라도 빠지면 판을 이어갈 수 없다.
-    netBroadcast({ type: 'peerLeft', name: gone.profile ? gone.profile.name : '상대' });
-    chatSystem(`${gone.profile ? gone.profile.name : '참가자'}님의 연결이 끊어졌습니다.`);
+    if (left) statsRecordWalkover(); // 연결을 정리하기 전에 기록한다
+    netBroadcast({ type: 'peerLeft', name: gone.profile ? gone.profile.name : '상대', left: !!left });
+    chatSystem(left ? `${who}님이 대전에서 나갔습니다.` : `${who}님의 연결이 끊어졌습니다.`);
     NET.status = 'error';
-    NET.errorMsg = `${gone.profile ? gone.profile.name : '참가자'}님의 연결이 끊어져 게임을 종료합니다.`;
-    netCleanupPeer();
+    NET.errorMsg = left
+      ? `${who}님이 나가서 게임을 종료합니다. 부전승으로 기록했습니다.`
+      : `${who}님의 연결이 끊어져 게임을 종료합니다.`;
+    netCleanupPeer(true); // 남은 게스트들에게 알림이 닿을 때까지 기다렸다 끊는다
     renderNetPanel();
     return;
   }
@@ -402,9 +409,14 @@ function netGuestHandle(msg) {
   }
 
   if (msg.type === 'peerLeft') {
-    chatSystem(`${msg.name || '참가자'}님의 연결이 끊어졌습니다.`);
+    const who = msg.name || '참가자';
+    const left = !!msg.left;
+    if (left) statsRecordWalkover(); // 연결을 정리하기 전에 기록한다
+    chatSystem(left ? `${who}님이 대전에서 나갔습니다.` : `${who}님의 연결이 끊어졌습니다.`);
     NET.status = 'error';
-    NET.errorMsg = `${msg.name || '참가자'}님의 연결이 끊어져 게임을 종료합니다.`;
+    NET.errorMsg = left
+      ? `${who}님이 나가서 게임을 종료합니다. 부전승으로 기록했습니다.`
+      : `${who}님의 연결이 끊어져 게임을 종료합니다.`;
     netCleanupPeer();
     renderNetPanel();
   }
@@ -429,23 +441,32 @@ function netUpdateLobby() {
 }
 
 // ============ 정리 ============
-function netCleanupPeer() {
-  NET.links.forEach((link) => {
-    try {
-      link.conn.close();
-    } catch (e) {
-      /* noop */
+// delayClose를 주면 연결을 바로 닫지 않고 잠시 뒤에 닫는다.
+// "나갑니다"를 보내자마자 닫으면 그 메시지가 전송되기 전에 끊겨서,
+// 상대가 자발적 퇴장인지 회선 장애인지 구분하지 못한다.
+function netCleanupPeer(delayClose) {
+  const conns = NET.links.map((link) => link.conn);
+  const peer = NET.peer;
+  const closeAll = () => {
+    conns.forEach((conn) => {
+      try {
+        conn.close();
+      } catch (e) {
+        /* noop */
+      }
+    });
+    if (peer) {
+      try {
+        peer.destroy();
+      } catch (e) {
+        /* noop */
+      }
     }
-  });
+  };
+  if (delayClose) setTimeout(closeAll, 400);
+  else closeAll();
   NET.links = [];
-  if (NET.peer) {
-    try {
-      NET.peer.destroy();
-    } catch (e) {
-      /* noop */
-    }
-    NET.peer = null;
-  }
+  NET.peer = null;
   NET.role = null;
   NET.roomCode = null;
   NET.seat = null;
@@ -476,9 +497,9 @@ function netLeaveRequested() {
 }
 
 function netLeaveRoom() {
-  if (NET.role === 'host') netBroadcast({ type: 'peerLeft', name: netMyProfile().name });
+  if (NET.role === 'host') netBroadcast({ type: 'peerLeft', name: netMyProfile().name, left: true });
   else netSendToHost({ type: 'left' });
-  netCleanupPeer();
+  netCleanupPeer(true); // 나간다는 알림이 나갈 때까지 기다렸다 끊는다
   NET.status = 'idle';
   NET.errorMsg = '';
   chatClear();

@@ -166,9 +166,9 @@ function maybeRecordResult() {
   renderStatsPanel();
 }
 
-// 온라인 대전 도중 스스로 나간 경우. 그 판을 패배로 남긴다.
+// 대전이 중도에 끝난 경우의 기록. 나간 사람은 패('l'), 남은 사람은 승('w').
 // 이미 끝난 판은 정상 집계(maybeRecordResult)를 따르므로 건드리지 않는다.
-function statsRecordForfeit() {
+function statsRecordAbandoned(result) {
   if (!G || !G.gameId || G.gameOver) return false;
   if (!window.NET || NET.mode !== 'online') return false;
 
@@ -176,13 +176,14 @@ function statsRecordForfeit() {
   if (STATS.lastRecordedGameId === G.gameId || s.lastRecordedGameId === G.gameId) return false;
 
   const count = G.playerCount || G.players.length;
-  statsBucket(s.totals.online, count).l += 1;
+  statsBucket(s.totals.online, count)[result] += 1;
 
-  // 2인이면 그 상대에게도 패로 남는다. (3인 이상은 상대별 전적을 쓰지 않는다)
+  // 2인이면 그 상대에게도 남는다. (3인 이상은 상대별 전적을 쓰지 않는다)
+  // NET.opponents가 정리되기 전에 불러야 하므로, 연결을 끊기 전에 기록한다.
   statsOpponents().forEach((opp) => {
     if (!s.opponents[opp.key]) s.opponents[opp.key] = { name: opp.name, last: 0, w: 0, l: 0, d: 0 };
     const rec = s.opponents[opp.key];
-    rec.l += 1;
+    rec[result] += 1;
     rec.name = opp.name;
     rec.last = Date.now();
   });
@@ -192,6 +193,16 @@ function statsRecordForfeit() {
   statsSave(s);
   renderStatsPanel();
   return true;
+}
+
+// 내가 대전 도중에 나갔다 -> 패
+function statsRecordForfeit() {
+  return statsRecordAbandoned('l');
+}
+
+// 상대가 대전 도중에 나갔다 -> 부전승
+function statsRecordWalkover() {
+  return statsRecordAbandoned('w');
 }
 
 // ============ 렌더링 ============
