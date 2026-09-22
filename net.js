@@ -24,6 +24,7 @@ const NET = {
   lobby: [], // 로비에 표시할 참가자 이름
   timer: null, // 연결 대기 시간 제한
   peerOpened: false, // 중계 서버까지는 닿았는지 (실패 원인 구분용)
+  hidingGameId: null, // 창을 닫으며 패배 처리한 판 (중복 처리 방지)
 };
 // game.js는 window.NET으로 존재 여부를 확인하므로 전역 객체에 명시적으로 노출한다.
 // (top-level const는 window의 프로퍼티가 되지 않는다.)
@@ -671,13 +672,33 @@ function netLeaveRequested() {
   }
   askConfirm({
     title: '대전에서 나가시겠습니까?',
-    body: '진행 중인 판은 패배로 기록됩니다.',
+    body: '진행 중인 판은 패배로 기록됩니다. 창을 그냥 닫아도 마찬가지입니다.',
     okLabel: '나가기 (패배 처리)',
     onOk: () => {
       statsRecordForfeit();
       netLeaveRoom();
     },
   });
+}
+
+// 탭을 닫거나 새로고침하면 "나갑니다"를 보내고 패배로 기록한다.
+// 그냥 끊기게 두면 상대 쪽에서는 회선 장애와 구분할 수 없어 아무도 기록되지
+// 않는데, 그것을 노리고 지고 있을 때 창을 닫아버리는 것을 막는다.
+//
+// persisted가 true면 페이지가 잠시 얼어붙는 것이다(모바일에서 앱을 전환할 때
+// 등). 다시 돌아올 수 있으므로 나가는 것으로 보지 않는다.
+function netPageHide(persisted) {
+  if (persisted) return;
+  // pagehide와 beforeunload가 둘 다 오는 브라우저가 있으므로 한 번만 처리한다
+  if (NET.hidingGameId === (G && G.gameId)) return;
+  if (NET.mode !== 'online' || NET.status !== 'active') return;
+  if (!G || G.gameOver) return;
+  // 내 패배는 localStorage에 곧바로 쓰이므로 확실히 남는다. 상대에게 보내는
+  // 알림은 창이 닫히는 중이라 나갈 수도, 못 나갈 수도 있다.
+  NET.hidingGameId = G.gameId;
+  statsRecordForfeit();
+  if (NET.role === 'host') netBroadcast({ type: 'peerLeft', name: netMyProfile().name, left: true });
+  else netSendToHost({ type: 'left' });
 }
 
 function netLeaveRoom() {
@@ -932,4 +953,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   updateModeTabs();
+
+  // 창을 닫거나 새로고침할 때. pagehide가 없는 브라우저를 위해 unload도 함께 본다.
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('pagehide', (e) => netPageHide(!!(e && e.persisted)));
+    window.addEventListener('beforeunload', () => netPageHide(false));
+  }
 });
