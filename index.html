@@ -6,7 +6,7 @@
 <title>스플렌더 라이트</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260922b">
+<link rel="stylesheet" href="style.css?v=20260922c">
 </head>
 <body>
 <div id="app">
@@ -92,12 +92,19 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
-<script src="cards.js?v=20260922b"></script>
-<script src="game.js?v=20260922b"></script>
-<script src="ai.js?v=20260922b"></script>
-<script src="stats.js?v=20260922b"></script>
-<script src="chat.js?v=20260922b"></script>
-<script src="net.js?v=20260922b"></script>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
+<script>
+  // 한 배포처가 막히면 다른 곳에서 받아 본다. 회사망에서 특정 CDN만 막는 경우가 있다.
+  if (typeof mqtt === 'undefined') {
+    document.write('<script src="https://unpkg.com/mqtt@5/dist/mqtt.min.js"><\/script>');
+  }
+</script>
+<script src="cards.js?v=20260922c"></script>
+<script src="game.js?v=20260922c"></script>
+<script src="ai.js?v=20260922c"></script>
+<script src="stats.js?v=20260922c"></script>
+<script src="chat.js?v=20260922c"></script>
+<script src="relay.js?v=20260922c"></script>
+<script src="net.js?v=20260922c"></script>
 </body>
 </html>

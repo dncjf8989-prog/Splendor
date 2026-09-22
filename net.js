@@ -1,6 +1,6 @@
 'use strict';
 
-// ============ 온라인 대전 (PeerJS / WebRTC, 로그인·서버 저장소 불필요) ============
+// ============ 온라인 대전 (공개 중계 서버, 로그인·자체 서버 불필요) ============
 // game.js가 정의하는 전역 G, render(), log(), newGame(), GEMS 등을 그대로 사용한다.
 //
 // 구조: 호스트가 허브 역할을 하는 스타 토폴로지.
@@ -10,23 +10,6 @@
 // 덕분에 2~4인을 같은 방식으로 다룰 수 있다.
 const PEER_ID_PREFIX = 'splendor-lite-';
 
-// STUN만으로는 일부 회사/학교/모바일 네트워크(대칭형 NAT)에서 상대와 직접
-// 연결이 열리지 않는다. TURN 서버를 하나 더 두면 그런 경우 이 서버를 거쳐
-// 중계된다. openrelay.metered.ca는 데모/소규모 프로젝트용 무료 공개 TURN
-// 서버다(대역폭 제한이 있고 예고 없이 바뀔 수 있다). 턴제 게임이라 중계로
-// 인한 지연은 체감되지 않는다.
-const ICE_CONFIG = {
-  // PeerJS 기본값을 통째로 덮어쓰므로 원래 있던 항목도 같이 적어준다.
-  sdpSemantics: 'unified-plan',
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-  ],
-};
-
 const NET = {
   mode: 'single', // 'single' | 'online'
   role: null, // 'host' | 'guest'
@@ -35,21 +18,33 @@ const NET = {
   seat: null, // 내 자리 번호 (호스트는 0)
   peer: null,
   links: [], // 호스트: 게스트별 연결 목록 / 게스트: 호스트 연결 하나
-  status: 'idle', // idle | creating | waiting | connecting | active | error
+  status: 'idle', // idle | creating | waiting | connecting | active | error | diag
   errorMsg: '',
   opponents: [], // 상대 프로필 목록 - 상대전적 집계에 쓴다
   lobby: [], // 로비에 표시할 참가자 이름
   timer: null, // 연결 대기 시간 제한
-  peerOpened: false, // 신호 서버까지는 닿았는지 (실패 원인 구분용)
+  peerOpened: false, // 중계 서버까지는 닿았는지 (실패 원인 구분용)
 };
 // game.js는 window.NET으로 존재 여부를 확인하므로 전역 객체에 명시적으로 노출한다.
 // (top-level const는 window의 프로퍼티가 되지 않는다.)
 window.NET = NET;
 
-// PeerJS는 연결이 끝내 열리지 않아도 오류를 주지 않는 경우가 있다.
-// 회사·학교망처럼 WebRTC가 막힌 곳에서 흔하다. 그대로 두면 "연결하는 중..."에서
-// 영영 멈추므로 직접 시간을 잰다.
-const NET_TIMEOUT_MS = 15000;
+// 중계 서버와의 연결이 끊기면 바로 다시 붙인다. 방장이 방을 만들어두고
+// 기다리는 사이에 끊기면, 그 뒤에 들어오는 참가 요청이 도달하지 않는다.
+function netKeepAlive(peer) {
+  peer.on('disconnected', () => {
+    if (peer.destroyed) return;
+    try {
+      peer.reconnect();
+    } catch (e) {
+      /* noop */
+    }
+  });
+}
+
+// 중계 서버가 끝내 응답하지 않아도 알림이 안 올 수 있으므로 직접 시간을 잰다.
+// 그대로 두면 "연결하는 중..."에서 영영 멈춘다.
+const NET_TIMEOUT_MS = 20000;
 
 function netClearTimer() {
   if (NET.timer) clearTimeout(NET.timer);
@@ -68,11 +63,9 @@ function netFailAfterTimeout(getMsg) {
 }
 
 // ============ 연결 진단 ============
-// 연결이 안 될 때 어디서 막히는지 확인한다. 브라우저마다 네트워크가 다르므로
-// 직접 돌려보는 수밖에 없다. 두 가지를 본다.
-//   1) ICE 후보 수집 - STUN(공인 주소 확인)과 TURN(중계)이 실제로 되는지
-//   2) 신호 서버 - 방 코드를 주고받는 서버에 닿는지
-const DIAG = { running: false, lines: [], done: false };
+// 연결이 안 될 때 어디서 막히는지 확인한다. 중계 서버를 한 곳씩 시험해서,
+// 한 곳이라도 되면 이 기기는 문제가 없다는 뜻이다.
+const DIAG = { running: false, lines: [], done: false, verdict: '' };
 window.DIAG = DIAG;
 
 function diagLog(text, ok) {
@@ -80,137 +73,50 @@ function diagLog(text, ok) {
   renderNetPanel();
 }
 
-// ICE 후보를 모아 어떤 종류가 잡히는지 본다.
-// host = 내 컴퓨터 주소, srflx = STUN 성공, relay = TURN 성공
-function diagGatherIce() {
+// 중계 서버 한 곳에 실제로 붙어, 자기 자신에게 메시지를 보내 왕복까지 확인한다.
+function diagRelay(url) {
   return new Promise((resolve) => {
-    if (typeof RTCPeerConnection === 'undefined') {
-      resolve({ error: '이 브라우저는 WebRTC를 지원하지 않습니다.' });
+    if (!relayAvailable()) {
+      resolve({ ok: false, reason: '중계 스크립트를 불러오지 못했습니다' });
       return;
     }
-    let pc;
-    try {
-      pc = new RTCPeerConnection(ICE_CONFIG);
-    } catch (e) {
-      resolve({ error: 'WebRTC를 시작하지 못했습니다.' });
-      return;
-    }
-    const types = new Set();
+    let client;
     let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      try {
-        pc.close();
-      } catch (e) {
-        /* noop */
-      }
-      resolve({ types });
-    };
-    const timer = setTimeout(finish, 10000);
-    pc.onicecandidate = (e) => {
-      if (!e.candidate) {
-        finish();
-        return;
-      }
-      const c = e.candidate;
-      const type = c.type || (String(c.candidate).match(/ typ (\w+)/) || [])[1];
-      if (type) types.add(type);
-      // 중계까지 확인됐으면 더 기다릴 필요 없다
-      if (types.has('relay') && types.has('srflx')) finish();
-    };
-    try {
-      pc.createDataChannel('diag');
-      pc.createOffer()
-        .then((offer) => pc.setLocalDescription(offer))
-        .catch(() => finish());
-    } catch (e) {
-      finish();
-    }
-  });
-}
-
-// TURN만 쓰도록 강제해 두 연결을 서로 붙여본다. 성공하면 TURN 서버와
-// 자격 증명이 실제로 동작한다는 뜻이다. 후보만 모아보는 것보다 확실하다.
-function diagTurnLoopback() {
-  return new Promise((resolve) => {
-    if (typeof RTCPeerConnection === 'undefined') {
-      resolve({ ok: false, reason: 'WebRTC 미지원' });
-      return;
-    }
-    const cfg = Object.assign({}, ICE_CONFIG, { iceTransportPolicy: 'relay' });
-    let a;
-    let b;
-    let settled = false;
+    const topic = 'splendor-lite-v1/diag-' + Math.random().toString(36).slice(2, 10);
     const finish = (ok, reason) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       try {
-        if (a) a.close();
-        if (b) b.close();
+        if (client) client.end(true);
       } catch (e) {
         /* noop */
       }
       resolve({ ok, reason });
     };
-    const timer = setTimeout(() => finish(false, '시간 초과'), 15000);
+    const timer = setTimeout(() => finish(false, '응답 없음'), 9000);
     try {
-      a = new RTCPeerConnection(cfg);
-      b = new RTCPeerConnection(cfg);
+      client = mqtt.connect(url, {
+        clientId: 'sl-diag-' + Math.random().toString(36).slice(2, 10),
+        connectTimeout: 7000,
+        reconnectPeriod: 0,
+        clean: true,
+      });
     } catch (e) {
-      finish(false, '시작 실패');
+      finish(false, '연결 시작 실패');
       return;
     }
-    a.onicecandidate = (e) => {
-      if (e.candidate && b) b.addIceCandidate(e.candidate).catch(() => {});
-    };
-    b.onicecandidate = (e) => {
-      if (e.candidate && a) a.addIceCandidate(e.candidate).catch(() => {});
-    };
-    const ch = a.createDataChannel('turntest');
-    ch.onopen = () => finish(true);
-    b.ondatachannel = (e) => {
-      e.channel.onopen = () => finish(true);
-    };
-    a.createOffer()
-      .then((offer) => a.setLocalDescription(offer).then(() => b.setRemoteDescription(offer)))
-      .then(() => b.createAnswer())
-      .then((answer) => b.setLocalDescription(answer).then(() => a.setRemoteDescription(answer)))
-      .catch(() => finish(false, '협상 실패'));
-  });
-}
-
-// 신호 서버에 닿는지 (방 코드를 주고받는 서버)
-function diagSignaling() {
-  return new Promise((resolve) => {
-    if (!netAvailable()) {
-      resolve({ ok: false, reason: '온라인 대전용 스크립트를 불러오지 못했습니다.' });
-      return;
-    }
-    let settled = false;
-    let peer;
-    const finish = (result) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      try {
-        if (peer) peer.destroy();
-      } catch (e) {
-        /* noop */
-      }
-      resolve(result);
-    };
-    const timer = setTimeout(() => finish({ ok: false, reason: '10초 안에 응답이 없습니다.' }), 10000);
-    try {
-      peer = new Peer(undefined, { config: ICE_CONFIG });
-    } catch (e) {
-      finish({ ok: false, reason: '연결을 시작하지 못했습니다.' });
-      return;
-    }
-    peer.on('open', () => finish({ ok: true }));
-    peer.on('error', (err) => finish({ ok: false, reason: (err && err.type) || '알 수 없는 오류' }));
+    client.on('connect', () => {
+      client.subscribe(topic, { qos: 0 }, (err) => {
+        if (err) {
+          finish(false, '구독 실패');
+          return;
+        }
+        client.publish(topic, 'ping', { qos: 0 });
+      });
+    });
+    client.on('message', () => finish(true));
+    client.on('error', () => finish(false, '연결 거부'));
   });
 }
 
@@ -222,73 +128,40 @@ async function netRunDiagnostics() {
   NET.status = 'diag';
   renderNetPanel();
 
-  diagLog('내 네트워크에서 쓸 수 있는 연결 방법을 찾는 중...', null);
-  const ice = await diagGatherIce();
-  DIAG.lines.pop();
-  if (ice.error) {
-    diagLog(ice.error, false);
-  } else {
-    const t = ice.types;
-    diagLog(t.has('host') ? '내 컴퓨터 주소 확인 - 정상' : '내 컴퓨터 주소를 찾지 못했습니다', t.has('host'));
-    diagLog(
-      t.has('srflx') ? 'STUN(공인 주소 확인) - 정상' : 'STUN 차단됨 - 방화벽이 막고 있습니다',
-      t.has('srflx')
-    );
-    diagLog(
-      t.has('relay') ? 'TURN(중계 서버) - 정상. 직접 연결이 막혀도 우회됩니다' : 'TURN(중계 서버) 사용 불가',
-      t.has('relay')
-    );
+  if (!relayAvailable()) {
+    diagLog('중계 스크립트를 불러오지 못했습니다 (광고 차단기나 방화벽이 막았을 수 있습니다)', false);
+    DIAG.verdict = '온라인 대전에 필요한 스크립트가 차단되었습니다. 확장 프로그램을 끄거나 다른 네트워크에서 시도해 보세요.';
+    DIAG.done = true;
+    DIAG.running = false;
+    renderNetPanel();
+    return;
   }
 
-  diagLog('중계 서버로 실제 연결이 되는지 시험하는 중... (최대 15초)', null);
-  const relay = await diagTurnLoopback();
-  DIAG.lines.pop();
-  diagLog(
-    relay.ok ? '중계(TURN) 실제 연결 - 성공' : `중계(TURN) 실제 연결 실패 (${relay.reason})`,
-    relay.ok
-  );
-
-  diagLog('방 코드 서버에 닿는지 확인하는 중...', null);
-  const sig = await diagSignaling();
-  DIAG.lines.pop();
-  diagLog(sig.ok ? '방 코드 서버 - 정상' : `방 코드 서버에 닿지 못했습니다 (${sig.reason})`, sig.ok);
-
-  // 종합 판단
-  const has = (k) => ice.types && ice.types.has(k);
-  let verdict;
-  if (!sig.ok) {
-    verdict = '방 코드 서버에 닿지 못합니다. 이 네트워크에서는 온라인 대전을 쓸 수 없습니다. 다른 네트워크(휴대폰 테더링 등)에서 시도해 보세요.';
-  } else if (relay.ok) {
-    verdict = '중계 서버로 실제 연결까지 성공했습니다. 이 기기 쪽은 문제가 없습니다. 그래도 대전이 안 되면 상대방 네트워크 문제일 수 있으니 상대방도 이 진단을 돌려보게 해주세요.';
-  } else if (has('relay')) {
-    verdict = '중계 서버 주소는 받았지만 실제 연결에는 실패했습니다. 중계 서버가 혼잡하거나 방화벽이 막고 있을 수 있습니다. 잠시 뒤 다시 시도하거나 다른 네트워크에서 시도해 보세요.';
-  } else if (has('srflx')) {
-    verdict = '중계 서버를 못 씁니다. 상대와 직접 연결이 되는 환경이면 대전이 되지만, 한쪽이라도 회사·학교망이면 실패합니다.';
-  } else {
-    verdict = 'STUN도 TURN도 막혀 있습니다. 이 네트워크(회사·학교망일 가능성이 높습니다)에서는 온라인 대전이 불가능합니다. 휴대폰 테더링 등 다른 네트워크에서 시도해 보세요.';
+  let anyOk = false;
+  for (let i = 0; i < RELAY_URLS.length; i++) {
+    const url = RELAY_URLS[i];
+    const host = String(url).replace(/^wss?:\/\//, '').split('/')[0];
+    diagLog(`중계 서버 ${i + 1} (${host}) 확인 중...`, null);
+    // eslint-disable-next-line no-await-in-loop
+    const r = await diagRelay(url);
+    DIAG.lines.pop();
+    diagLog(
+      r.ok ? `중계 서버 ${i + 1} (${host}) - 연결 성공` : `중계 서버 ${i + 1} (${host}) - 실패 (${r.reason})`,
+      r.ok
+    );
+    if (r.ok) anyOk = true;
   }
-  DIAG.verdict = verdict;
+
+  DIAG.verdict = anyOk
+    ? '중계 서버에 연결됩니다. 이 기기 쪽은 문제가 없습니다. 그래도 대전이 안 되면 방 코드가 맞는지, 방장이 방을 열어둔 상태인지 확인해 주세요.'
+    : '어느 중계 서버에도 연결하지 못했습니다. 이 네트워크(회사·학교망일 가능성이 높습니다)가 막고 있습니다. 휴대폰 테더링 등 다른 네트워크에서 시도해 보세요.';
   DIAG.done = true;
   DIAG.running = false;
   renderNetPanel();
 }
 
-// PeerJS는 방 코드 서버와의 연결이 한동안 조용하면 끊는다. 방장이 방을
-// 만들어두고 기다리는 사이에 이게 끊기면, 그 뒤에 들어오는 참가 요청이
-// 방장에게 도달하지 않아 게스트 쪽이 그대로 멈춘다. 끊기면 바로 다시 붙인다.
-function netKeepAlive(peer) {
-  peer.on('disconnected', () => {
-    if (peer.destroyed) return;
-    try {
-      peer.reconnect();
-    } catch (e) {
-      /* noop */
-    }
-  });
-}
-
 function netAvailable() {
-  return typeof Peer !== 'undefined';
+  return typeof RelayPeer !== 'undefined' && relayAvailable();
 }
 
 function netRandomRoomCode() {
@@ -435,16 +308,25 @@ function netCreateRoom() {
   NET.links = [];
   NET.opponents = [];
 
-  const peer = new Peer(PEER_ID_PREFIX + code, { config: ICE_CONFIG });
+  const peer = new RelayPeer(PEER_ID_PREFIX + code);
   NET.peer = peer;
   netKeepAlive(peer);
 
   netFailAfterTimeout(() => '방을 여는 데 실패했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
 
   peer.on('open', () => {
-    netClearTimer();
-    NET.status = 'waiting';
-    netUpdateLobby();
+    // 같은 방 코드를 쓰는 방이 이미 있는지 확인한 뒤에 연다.
+    peer.probe(
+      () => {
+        peer.destroy();
+        netCreateRoom(); // 코드 충돌 - 다른 코드로 다시
+      },
+      () => {
+        netClearTimer();
+        NET.status = 'waiting';
+        netUpdateLobby();
+      }
+    );
   });
 
   peer.on('connection', (conn) => {
@@ -471,15 +353,10 @@ function netCreateRoom() {
     conn.on('error', () => netHostLinkGone(conn));
   });
 
-  peer.on('error', (err) => {
+  peer.on('error', () => {
     netClearTimer();
-    if (err && err.type === 'unavailable-id') {
-      peer.destroy();
-      netCreateRoom(); // 코드 충돌 시 재시도
-      return;
-    }
     NET.status = 'error';
-    NET.errorMsg = '방을 여는 중 오류가 발생했습니다.';
+    NET.errorMsg = '중계 서버에 연결하지 못했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.';
     renderNetPanel();
   });
 }
@@ -602,15 +479,15 @@ function netJoinRoom(rawCode) {
   renderNetPanel();
 
   NET.peerOpened = false;
-  const peer = new Peer(undefined, { config: ICE_CONFIG });
+  const peer = new RelayPeer();
   NET.peer = peer;
   netKeepAlive(peer);
 
   // 신호 서버까지 닿았는지에 따라 안내를 달리 준다.
   netFailAfterTimeout(() =>
     NET.peerOpened
-      ? '방장과 직접 연결하지 못했습니다. 회사나 학교 네트워크에서는 막히는 경우가 있습니다. 휴대폰 테더링 같은 다른 네트워크에서 시도해 보세요.'
-      : '연결 서버에 닿지 못했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
+      ? '방장이 응답하지 않습니다. 방 코드가 맞는지, 방장이 방을 열어둔 상태인지 확인해 주세요.'
+      : '중계 서버에 닿지 못했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.');
 
   peer.on('open', () => {
     NET.peerOpened = true;
@@ -629,10 +506,10 @@ function netJoinRoom(rawCode) {
     netClearTimer();
     if (err && err.type === 'peer-unavailable') {
       NET.status = 'error';
-      NET.errorMsg = '존재하지 않는 방 코드입니다.';
+      NET.errorMsg = '방장이 응답하지 않습니다. 방 코드가 맞는지, 방장이 방을 열어둔 상태인지 확인해 주세요.';
     } else {
       NET.status = 'error';
-      NET.errorMsg = '연결 중 오류가 발생했습니다.';
+      NET.errorMsg = '중계 서버에 연결하지 못했습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.';
     }
     renderNetPanel();
   });
@@ -893,10 +770,29 @@ function renderNetPanelBody() {
     return;
   }
 
+  if (NET.status === 'diag') {
+    const rows = DIAG.lines
+      .map((l) => {
+        const mark = l.ok === null ? '·' : l.ok ? '✓' : '✗';
+        const cls = l.ok === null ? 'diag-wait' : l.ok ? 'diag-ok' : 'diag-bad';
+        return `<li class="${cls}"><span class="diag-mark">${mark}</span>${escapeHtml(l.text)}</li>`;
+      })
+      .join('');
+    el.innerHTML = `<div class="net-box">
+      <div class="diag-title">연결 진단</div>
+      <ul class="diag-list">${rows}</ul>
+      ${DIAG.done ? `<div class="diag-verdict">${escapeHtml(DIAG.verdict || '')}</div>` : ''}
+      ${DIAG.done ? '<button data-net-act="retry">돌아가기</button>' : ''}
+    </div>`;
+    return;
+  }
+
   if (!netAvailable()) {
     el.innerHTML = `<div class="net-box net-warn">
-      이 화면에서는 온라인 대전을 사용할 수 없습니다. (온라인 대전용 스크립트를 불러오지 못했습니다)
-      <br><button data-net-act="toSingle">싱글 플레이로 돌아가기</button>
+      온라인 대전에 필요한 스크립트를 불러오지 못했습니다.
+      광고 차단 확장 프로그램이나 회사·학교망이 막았을 수 있습니다.
+      <br><button data-net-act="diag">진단하기</button>
+      <button data-net-act="toSingle">싱글 플레이로 돌아가기</button>
     </div>`;
     return;
   }
@@ -929,23 +825,6 @@ function renderNetPanelBody() {
       ${escapeHtml(NET.errorMsg)}
       <br><button data-net-act="retry">다시 시도</button>
       <button data-net-act="diag">진단하기</button>
-    </div>`;
-    return;
-  }
-
-  if (NET.status === 'diag') {
-    const rows = DIAG.lines
-      .map((l) => {
-        const mark = l.ok === null ? '·' : l.ok ? '✓' : '✗';
-        const cls = l.ok === null ? 'diag-wait' : l.ok ? 'diag-ok' : 'diag-bad';
-        return `<li class="${cls}"><span class="diag-mark">${mark}</span>${escapeHtml(l.text)}</li>`;
-      })
-      .join('');
-    el.innerHTML = `<div class="net-box">
-      <div class="diag-title">연결 진단</div>
-      <ul class="diag-list">${rows}</ul>
-      ${DIAG.done ? `<div class="diag-verdict">${escapeHtml(DIAG.verdict || '')}</div>` : ''}
-      ${DIAG.done ? '<button data-net-act="retry">돌아가기</button>' : ''}
     </div>`;
     return;
   }
