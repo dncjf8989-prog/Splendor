@@ -33,13 +33,13 @@ function escapeHtml(str) {
 }
 
 // ============ 전역 상태 ============
-// 인원수별 규칙. 토큰/귀족 수는 원작 스플렌더와 같은 비율이고, 승리 점수는
-// 인원이 늘수록 한 사람이 가져갈 수 있는 카드가 줄어드는 만큼 낮춘다.
-// (AI끼리 대국시킨 시뮬레이션으로 한 판 길이가 비슷해지도록 맞춘 값)
+// 인원수별 규칙. 토큰/귀족 수는 원작 스플렌더와 같은 비율이다.
+// 승리 점수는 인원이 늘수록 낮춘다. 한 라운드에 도는 차례가 늘어 실제로
+// 앉아 있는 시간이 길어지기 때문이다. (2인 64차례 / 3인 86차례 / 4인 108차례)
 const RULES = {
   2: { tokens: 4, gold: 5, nobles: 3, winPoints: 21 },
-  3: { tokens: 5, gold: 5, nobles: 4, winPoints: 20 },
-  4: { tokens: 7, gold: 5, nobles: 5, winPoints: 19 },
+  3: { tokens: 5, gold: 5, nobles: 4, winPoints: 17 },
+  4: { tokens: 7, gold: 5, nobles: 5, winPoints: 15 },
 };
 const DEFAULT_PLAYER_COUNT = 2;
 const HUMAN_SEAT = 0; // 싱글 플레이에서 사람이 앉는 자리
