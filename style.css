@@ -913,3 +913,44 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   font-weight: 700;
 }
 .confirm-danger:hover { filter: brightness(1.08); }
+
+/* ============ 연결 진단 ============ */
+.net-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.diag-title { font-weight: 700; margin-bottom: 10px; }
+.diag-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  text-align: left;
+  display: inline-block;
+  font-size: 13px;
+  line-height: 1.9;
+}
+.diag-mark {
+  display: inline-block;
+  width: 1.4em;
+  font-weight: 700;
+}
+.diag-ok .diag-mark { color: var(--gem-green); }
+.diag-bad { color: var(--gem-red); }
+.diag-bad .diag-mark { color: var(--gem-red); }
+.diag-wait { color: var(--muted); }
+.diag-verdict {
+  margin: 0 auto 12px;
+  max-width: 34em;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--win-bg);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  line-height: 1.6;
+}
