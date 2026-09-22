@@ -265,6 +265,20 @@ function netSendToHost(msg) {
   if (link) netSendTo(link.conn, msg);
 }
 
+// 전적 랭킹용 명단. 방장이면 전원에게, 게스트면 방장에게 보낸다.
+// 방장이 받으면 자기 것과 합쳐 다시 전원에게 돌리므로 방 안에서 하나로 모인다.
+function netShareRoster() {
+  if (NET.mode !== 'online' || !NET.links.length) return;
+  const msg = { type: 'roster', list: boardShareList() };
+  if (NET.role === 'host') netBroadcast(msg);
+  else netSendToHost(msg);
+}
+
+// 판이 끝나 내 기록이 바뀌었을 때 부른다.
+function netShareRecord() {
+  netShareRoster();
+}
+
 // 채팅도 상태와 같은 경로로 오간다. 방장이면 전원에게, 게스트면 방장에게.
 function netSendChat(entry) {
   const msg = { type: 'chat', seat: entry.seat, name: entry.name, text: entry.text };
@@ -367,11 +381,21 @@ function netHostHandle(conn, msg) {
 
   if (msg.type === 'hello') {
     if (link) link.profile = netSanitizeProfile(msg.profile);
+    boardMergeMany(msg.roster);
+    netShareRoster(); // 새로 온 사람 것까지 합쳐 전원에게
     netUpdateLobby();
     // 정원이 다 찼고 모두 프로필을 보냈으면 시작한다.
     if (NET.status === 'waiting' && NET.links.length === NET.roomSize - 1 && NET.links.every((l) => l.profile)) {
       netHostStartGame();
     }
+    return;
+  }
+
+  if (msg.type === 'roster') {
+    // 게스트가 자기 기록을 보냈다. 합쳐서 전원에게 다시 돌린다.
+    if (boardMergeMany(msg.list)) netShareRoster();
+    else netSendTo(conn, { type: 'roster', list: boardShareList() });
+    renderStatsPanel();
     return;
   }
 
@@ -495,7 +519,7 @@ function netJoinRoom(rawCode) {
     NET.links = [{ conn, seat: null, profile: null }];
     conn.on('open', () => {
       netClearTimer();
-      netSendTo(conn, { type: 'hello', profile: netMyProfile() });
+      netSendTo(conn, { type: 'hello', profile: netMyProfile(), roster: boardShareList() });
     });
     conn.on('data', netGuestHandle);
     conn.on('close', netGuestHostGone);
@@ -540,6 +564,12 @@ function netGuestHandle(msg) {
     netSetOpponentsFrom(msg.profiles);
     netApplyRemoteState(msg.state);
     renderNetPanel();
+    return;
+  }
+
+  if (msg.type === 'roster') {
+    boardMergeMany(msg.list);
+    renderStatsPanel();
     return;
   }
 

@@ -698,7 +698,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .stats-w { color: var(--gem-green); }
 .stats-l { color: var(--gem-red); }
 
-.stats-section-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.stats-section-label { font-size: 12px; color: var(--muted); margin: 18px 0 6px; }
 .stats-table {
   width: 100%;
   border-collapse: collapse;
@@ -953,4 +953,69 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   border: 1px solid var(--border);
   font-size: 13px;
   line-height: 1.6;
+}
+
+/* ============ 전적: 랭킹 ============ */
+.stats-sorts {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.stats-sort {
+  padding: 4px 12px;
+  font-size: 12px;
+  border-radius: 999px;
+}
+.stats-sort.active {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.rank-table .rank-no {
+  width: 34px;
+  text-align: center;
+  color: var(--muted);
+  font-weight: 700;
+}
+.rank-table tr.rank-me td {
+  background: var(--win-bg);
+}
+.rank-table tr.rank-me .stats-name { color: var(--accent); }
+.rank-you {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 10px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+.rank-few {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.rank-note { display: block; margin-top: 8px; line-height: 1.5; }
+
+.stats-empty-box {
+  padding: 18px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.6;
+}
+.rank-ago {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
 }

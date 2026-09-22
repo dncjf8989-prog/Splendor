@@ -163,6 +163,7 @@ function maybeRecordResult() {
 
   STATS.lastRecordedGameId = G.gameId;
   statsSave(s);
+  boardShareResult(); // 바뀐 내 기록을 같은 방 사람들에게
   renderStatsPanel();
 }
 
@@ -191,6 +192,7 @@ function statsRecordAbandoned(result) {
 
   STATS.lastRecordedGameId = G.gameId;
   statsSave(s);
+  boardShareResult();
   renderStatsPanel();
   return true;
 }
@@ -219,6 +221,49 @@ function statsAddInto(target, src) {
   target.l += src.l;
   target.d += src.d;
   return target;
+}
+
+// 랭킹 표. 같은 방에서 주고받아 모아둔 기록으로 만든다.
+function statsRankingHtml(filter) {
+  const sort = BOARD.sort;
+  const myId = statsProfile().id;
+  const rows = boardRanking(boardAll(), filter, sort);
+
+  const sortTabs = [['rate', '승률'], ['wins', '최다승'], ['games', '판수']]
+    .map(([k, label]) => `<button class="stats-sort${sort === k ? ' active' : ''}" data-board-sort="${k}">${label}</button>`)
+    .join('');
+
+  if (!rows.length) {
+    const known = boardKnownCount();
+    const msg = known
+      ? '이 인원수로 치른 온라인 대전 기록이 아직 없습니다.'
+      : '아직 같이 대전해 본 사람이 없습니다. 온라인 대전을 한 판 하면 서로의 전적이 오갑니다.';
+    return `<div class="stats-sorts">${sortTabs}</div><div class="stats-empty-box">${msg}</div>`;
+  }
+
+  const body = rows
+    .map((r) => {
+      const me = r.id === myId;
+      const medal = r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : r.rank;
+      return `<tr class="${me ? 'rank-me' : ''}">
+        <td class="rank-no">${medal}</td>
+        <td class="stats-name">${escapeHtml(r.name)}${me ? '<span class="rank-you">나</span>' : ''}${r.few ? `<span class="rank-few">${BOARD_MIN_GAMES}전 미만</span>` : ''}${me ? '' : `<span class="rank-ago">${boardAgo(r.at)}</span>`}</td>
+        <td>${r.total}전</td>
+        <td class="stats-w">${r.w}승</td>
+        <td class="stats-l">${r.l}패</td>
+        <td class="stats-rate">${boardRateText(r.rate)}%</td>
+      </tr>`;
+    })
+    .join('');
+
+  const note =
+    sort === 'rate'
+      ? `승률 순위는 ${BOARD_MIN_GAMES}전 이상만 위쪽에 놓습니다. 적은 판수로 100%가 1등이 되지 않도록 한 것입니다.`
+      : '';
+
+  return `<div class="stats-sorts">${sortTabs}</div>
+    <table class="stats-table rank-table"><tbody>${body}</tbody></table>
+    ${note ? `<div class="stats-note rank-note">${note}</div>` : ''}`;
 }
 
 function renderStatsPanel() {
@@ -276,7 +321,7 @@ function renderStatsPanel() {
           })
           .join('')
       : `<tr><td colspan="6" class="stats-empty">아직 1:1 기록이 없습니다.</td></tr>`;
-    oppSection = `<table class="stats-table"><tbody>${oppRows}</tbody></table>`;
+    oppSection = `<table class="stats-table opp-table"><tbody>${oppRows}</tbody></table>`;
   }
 
   el.innerHTML = `
@@ -299,11 +344,15 @@ function renderStatsPanel() {
       ${byCount}
     </div>
 
+    <div class="stats-section-label">랭킹<span class="stats-hint">같이 대전해 본 사람들 · 온라인 기록만</span></div>
+    ${statsRankingHtml(f)}
+
     <div class="stats-section-label">상대별 전적<span class="stats-hint">1:1(2인) 대전만 기록합니다</span></div>
     ${oppSection}
 
     <div class="stats-footer">
-      <span class="stats-note">전적은 이 브라우저에만 저장되며, 게임 결과로만 갱신됩니다. 기기나 브라우저를 바꾸면 따로 쌓입니다.</span>
+      <span class="stats-note">전적은 이 브라우저에만 저장되며, 게임 결과로만 갱신됩니다. 기기나 브라우저를 바꾸면 따로 쌓입니다.
+      랭킹에 있는 다른 사람의 전적은 같이 대전할 때 주고받은 것이라, 마지막으로 만난 시점의 기록입니다.</span>
     </div>`;
 }
 
@@ -329,6 +378,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const body = document.getElementById('statsBody');
   if (body) {
     body.addEventListener('click', (e) => {
+      const sortEl = e.target.closest('[data-board-sort]');
+      if (sortEl) {
+        BOARD.sort = sortEl.dataset.boardSort;
+        renderStatsPanel();
+        return;
+      }
       const tabEl = e.target.closest('[data-stats-filter]');
       if (tabEl) {
         statsFilter = tabEl.dataset.statsFilter;
