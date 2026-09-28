@@ -167,7 +167,6 @@ function maybeRecordResult() {
 
   STATS.lastRecordedGameId = G.gameId;
   statsSave(s);
-  boardNoteOpponents(count); // 같이 둔 사람들의 결과도 내 쪽에서 적어둔다
   boardShareResult(); // 바뀐 내 기록을 같은 방 사람들에게
   renderStatsPanel();
 }
@@ -257,7 +256,7 @@ function statsRankingHtml(filter) {
       const medal = r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : r.rank;
       return `<tr class="${me ? 'rank-me' : ''}">
         <td class="rank-no">${medal}</td>
-        <td class="stats-name">${escapeHtml(r.name)}${me ? '<span class="rank-you">나</span>' : ''}${r.few ? `<span class="rank-few">${BOARD_MIN_GAMES}전 미만</span>` : ''}${r.mine ? '<span class="rank-few">나와 둔 판만</span>' : ''}${me ? '' : `<span class="rank-ago">${boardAgo(r.at)}</span>`}</td>
+        <td class="stats-name">${escapeHtml(r.name)}${me ? '<span class="rank-you">나</span>' : ''}${r.few ? `<span class="rank-few">${BOARD_MIN_GAMES}전 미만</span>` : ''}${me ? '' : `<span class="rank-ago">${boardAgo(r.at)}</span>`}</td>
         <td>${r.total}전</td>
         <td class="stats-w">${r.w}승</td>
         <td class="stats-l">${r.l}패</td>
@@ -382,9 +381,8 @@ function renderStatsPanel() {
 
     <div class="stats-footer">
       <span class="stats-note">전적은 이 브라우저에만 저장되며, 게임 결과로만 갱신됩니다. 기기나 브라우저를 바꾸면 따로 쌓입니다.
-      랭킹의 다른 사람 전적은 그 사람이 마지막으로 올린 시점의 기록이며, 이름 옆에 그 시점을 적었습니다.
-      아직 한 번도 올리지 않은 사람은 <b>나와 둔 판만</b> 세어 보여주고, 본인 기록이 올라오면 그것으로 바뀝니다.
-      90일 넘게 올라오지 않은 기록은 숨깁니다.</span>
+      랭킹은 각자가 집계한 <b>전체 전적</b>입니다. 그 사람이 마지막으로 올린 시점의 기록이며, 이름 옆에 그 시점을 적었습니다.
+      한 번도 접속한 적 없는 사람은 올라온 기록이 없어 나오지 않습니다. 90일 넘게 올라오지 않은 기록도 숨깁니다.</span>
     </div>`;
 }
 

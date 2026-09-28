@@ -109,110 +109,25 @@ function boardShareList() {
   return [boardMyRecord()].concat(Object.keys(map).map((k) => map[k])).slice(0, BOARD_MAX_PLAYERS);
 }
 
-// ============ 같이 둔 판에서 내가 본 성적 ============
-// 상대가 자기 기록을 올려주기를 기다릴 필요가 없다. 같이 둔 판은 내 쪽에서도
-// 누가 이겼는지 알기 때문이다. 판이 끝날 때마다 상대들의 결과를 적어두었다가,
-// 그 사람의 진짜 기록이 없을 때 대신 보여준다.
+// 랭킹에 쓸 전체 명단. 모두 "그 사람이 스스로 집계한 전체 전적"이다.
+//   1) 내 기록 - 항상 지금 것이고, 남이 덮어쓸 수 없다
+//   2) 방에서 만나 받아둔 그 사람의 기록
+//   3) 전체 랭킹에서 불러온 그 사람의 기록
+// 같은 사람이 겹치면 더 최근 것을 쓴다.
 //
-// 어디까지나 "내가 낀 판"만 세므로 그 사람의 전체 전적은 아니다. 그래서 화면에
-// 따로 표시하고, 본인이 올린 기록이 들어오면 그쪽으로 바꾼다.
-const SEEN_KEY = 'splendorLiteSeen';
-
-function boardSeenLoad() {
-  const raw = statsReadJson(SEEN_KEY, null);
-  if (!raw || typeof raw !== 'object') return {};
-  const out = {};
-  Object.keys(raw).forEach((k) => {
-    const rec = boardSanitize(raw[k]);
-    if (rec) out[rec.id] = rec;
-  });
-  return out;
-}
-
-function boardSeenSave(map) {
-  const list = Object.keys(map)
-    .map((k) => map[k])
-    .sort((a, b) => b.at - a.at)
-    .slice(0, BOARD_MAX_PLAYERS);
-  const out = {};
-  list.forEach((r) => {
-    out[r.id] = r;
-  });
-  statsWriteJson(SEEN_KEY, out);
-}
-
-// 방금 끝난 판의 상대들 결과를 더한다. (온라인 대전에서만)
-function boardNoteOpponents(count) {
-  if (!window.NET || NET.mode !== 'online') return;
-  const n = String(count);
-  if (n !== '2' && n !== '3' && n !== '4') return;
-  const map = boardSeenLoad();
-  let touched = false;
-
-  (NET.opponents || []).forEach((o) => {
-    if (!o || !o.id || o.seat == null) return;
-    const result = statsResultOf(o.seat);
-    if (!result) return;
-    const rec = map[o.id] || { id: o.id, name: o.name || '상대', at: 0, online: boardCounts(null) };
-    rec.online[n][result] += 1;
-    rec.name = o.name || rec.name; // 이름을 바꿨으면 최신으로
-    rec.at = Date.now();
-    map[o.id] = rec;
-    touched = true;
-  });
-
-  if (touched) boardSeenSave(map);
-}
-
-// 예전 판본의 1:1 상대별 전적에서도 끌어온다. 내 승패를 뒤집으면 그 사람의
-// 승패가 된다. (그때는 상대 기록을 따로 적어두지 않았다)
-function boardFromHeadToHead() {
-  const opp = statsLoad().opponents || {};
-  const out = {};
-  Object.keys(opp).forEach((key) => {
-    if (key === 'AI' || key === 'unknown') return;
-    const r = opp[key];
-    const w = boardNum(r && r.l); // 내 패 = 상대의 승
-    const l = boardNum(r && r.w);
-    const d = boardNum(r && r.d);
-    if (!(w + l + d)) return;
-    out[key] = {
-      id: key,
-      name: (r.name || '상대').slice(0, 12),
-      at: Number.isFinite(r.last) && r.last > 0 ? r.last : 0, // 시각은 승수 상한을 쓰면 안 된다
-      online: boardCounts({ 2: { w, l, d } }),
-    };
-  });
-  return out;
-}
-
-// 랭킹에 쓸 전체 명단. 근거가 약한 것부터 쌓고 확실한 것으로 덮는다.
-//   1) 예전 1:1 상대별 전적을 뒤집은 것      (약함)
-//   2) 같이 둔 판에서 내가 본 성적            (약함)
-//   3) 방에서 만나 받아둔 그 사람의 기록      (본인 것)
-//   4) 전체 랭킹에서 불러온 그 사람의 기록    (본인 것)
-// 3·4가 겹치면 더 최근 것을 쓴다. 내 기록은 언제나 내 브라우저 것이다.
+// 내가 같이 둔 판만 세어 대신 채우는 짓은 하지 않는다. 그러면 그 사람의 전체
+// 전적이 아니라 나와의 전적이 되어버려, 화면에 적힌 숫자의 뜻이 사람마다
+// 달라진다. 아직 한 번도 앱을 연 적 없는 사람은 그냥 나오지 않는다.
 function boardAll() {
   const mine = boardMyRecord();
   const out = Object.create(null);
-
-  const weak = boardFromHeadToHead();
-  const seen = boardSeenLoad();
-  Object.keys(seen).forEach((k) => {
-    weak[k] = seen[k]; // 직접 센 쪽이 더 정확하다
-  });
-  Object.keys(weak).forEach((k) => {
-    out[k] = Object.assign({}, weak[k], { mine: true });
-  });
-
   const put = (r) => {
     const prev = out[r.id];
-    if (!prev || prev.mine || r.at >= prev.at) out[r.id] = r;
+    if (!prev || r.at >= prev.at) out[r.id] = r;
   };
   const roster = boardRosterLoad();
   Object.keys(roster).forEach((k) => put(roster[k]));
   (BOARD.players || []).forEach(put);
-
   delete out[mine.id];
   return [mine].concat(Object.keys(out).map((k) => out[k]));
 }
@@ -229,7 +144,6 @@ function boardRowOf(p, filter) {
     id: p.id,
     name: p.name,
     at: p.at,
-    mine: !!p.mine, // 그 사람이 올린 기록이 아니라, 내가 같이 둔 판만 센 것
     w: rec.w,
     l: rec.l,
     d: rec.d,
