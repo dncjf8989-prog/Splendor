@@ -111,14 +111,18 @@ function statsBeats(a, b) {
 
 // 판 승패. 이긴 사람만 승이고 나머지는 전부 패다.
 // (맨 위에서 점수와 카드 수까지 똑같이 겹치면 그 인원은 무승부)
-function statsMyResult() {
-  const mySeat = window.NET && NET.mode === 'online' ? NET.seat : HUMAN_SEAT;
-  if (mySeat == null || !G || !G.players[mySeat]) return null;
-  const me = G.players[mySeat];
-  const others = G.players.filter((_, i) => i !== mySeat);
+// 그 자리에 앉은 사람의 판 결과. 나뿐 아니라 상대 자리도 같은 기준으로 본다.
+function statsResultOf(seat) {
+  if (seat == null || !G || !G.players[seat]) return null;
+  const me = G.players[seat];
+  const others = G.players.filter((_, i) => i !== seat);
   if (others.some((p) => statsBeats(p, me))) return 'l';
   if (others.some((p) => p.points === me.points && p.cards.length === me.cards.length)) return 'd';
   return 'w';
+}
+
+function statsMyResult() {
+  return statsResultOf(window.NET && NET.mode === 'online' ? NET.seat : HUMAN_SEAT);
 }
 
 // 1:1 상대. 3인 이상에서는 상대별 전적을 남기지 않으므로 빈 배열이다.
@@ -163,6 +167,7 @@ function maybeRecordResult() {
 
   STATS.lastRecordedGameId = G.gameId;
   statsSave(s);
+  boardNoteOpponents(count); // 같이 둔 사람들의 결과도 내 쪽에서 적어둔다
   boardShareResult(); // 바뀐 내 기록을 같은 방 사람들에게
   renderStatsPanel();
 }
@@ -252,7 +257,7 @@ function statsRankingHtml(filter) {
       const medal = r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : r.rank;
       return `<tr class="${me ? 'rank-me' : ''}">
         <td class="rank-no">${medal}</td>
-        <td class="stats-name">${escapeHtml(r.name)}${me ? '<span class="rank-you">나</span>' : ''}${r.few ? `<span class="rank-few">${BOARD_MIN_GAMES}전 미만</span>` : ''}${me ? '' : `<span class="rank-ago">${boardAgo(r.at)}</span>`}</td>
+        <td class="stats-name">${escapeHtml(r.name)}${me ? '<span class="rank-you">나</span>' : ''}${r.few ? `<span class="rank-few">${BOARD_MIN_GAMES}전 미만</span>` : ''}${r.mine ? '<span class="rank-few">나와 둔 판만</span>' : ''}${me ? '' : `<span class="rank-ago">${boardAgo(r.at)}</span>`}</td>
         <td>${r.total}전</td>
         <td class="stats-w">${r.w}승</td>
         <td class="stats-l">${r.l}패</td>
@@ -378,6 +383,7 @@ function renderStatsPanel() {
     <div class="stats-footer">
       <span class="stats-note">전적은 이 브라우저에만 저장되며, 게임 결과로만 갱신됩니다. 기기나 브라우저를 바꾸면 따로 쌓입니다.
       랭킹의 다른 사람 전적은 그 사람이 마지막으로 올린 시점의 기록이며, 이름 옆에 그 시점을 적었습니다.
+      아직 한 번도 올리지 않은 사람은 <b>나와 둔 판만</b> 세어 보여주고, 본인 기록이 올라오면 그것으로 바뀝니다.
       90일 넘게 올라오지 않은 기록은 숨깁니다.</span>
     </div>`;
 }
