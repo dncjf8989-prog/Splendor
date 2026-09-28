@@ -237,11 +237,12 @@ function statsRankingHtml(filter) {
 
   if (!rows.length) {
     const known = boardKnownCount();
-    const msg = boardGroup()
-      ? '이 그룹에 아직 기록이 없습니다. 온라인 대전을 한 판 하면 올라갑니다.'
-      : known
-        ? '이 인원수로 치른 온라인 대전 기록이 아직 없습니다.'
-        : '아직 같이 대전해 본 사람이 없습니다. 온라인 대전을 한 판 하거나, 위에 그룹 코드를 넣으면 같은 코드를 쓰는 사람들이 바로 보입니다.';
+    const msg =
+      BOARD.status === 'loading'
+        ? '불러오는 중입니다...'
+        : known || BOARD.players.length
+          ? '이 인원수로 치른 온라인 대전 기록이 아직 없습니다.'
+          : '아직 올라온 기록이 없습니다. 온라인 대전을 한 판 하면 순위표에 올라갑니다.';
     return `${group}<div class="stats-sorts">${sortTabs}</div><div class="stats-empty-box">${msg}</div>`;
   }
 
@@ -270,9 +271,9 @@ function statsRankingHtml(filter) {
     ${note ? `<div class="stats-note rank-note">${note}</div>` : ''}`;
 }
 
-// 그룹 코드 입력줄 + 불러오기 상태
+// 불러오기 줄 (전체 랭킹)
 function statsGroupRowHtml() {
-  const code = boardGroup();
+  const on = boardShareEnabled();
   let state = '';
   if (BOARD.status === 'loading') {
     state = '<span class="group-state">불러오는 중...</span>';
@@ -282,18 +283,18 @@ function statsGroupRowHtml() {
     state = `<span class="group-state">${BOARD.players.length}명 · ${boardAgo(BOARD.at)} 기준</span>`;
   }
 
-  const hint = code
-    ? '같은 코드를 쓰는 사람들의 전적이 함께 보입니다. 코드를 비우면 올리기를 멈추고 이 기기에서 지웁니다.'
-    : '코드를 정해 같이 쓰면, 한 번도 안 붙어본 사람의 전적도 바로 볼 수 있습니다. 코드는 비밀번호처럼 아는 사람끼리만 나눠 쓰세요.';
-
   return `<div class="group-row">
-      <label for="groupInput">랭킹 그룹 코드</label>
-      <input id="groupInput" maxlength="24" autocomplete="off" placeholder="예: 우리회사" value="${escapeHtml(code)}">
-      <button data-stats-act="saveGroup">저장</button>
-      <button data-stats-act="refreshGroup"${code ? '' : ' disabled'}>새로고침</button>
+      <button data-stats-act="refreshBoard">새로고침</button>
       ${state}
+      <label class="board-toggle">
+        <input type="checkbox" id="shareChk"${on ? ' checked' : ''}> 내 전적 올리기
+      </label>
     </div>
-    <div class="stats-note group-hint">${hint}</div>`;
+    <div class="stats-note group-hint">
+      이 순위표는 누구나 볼 수 있는 공개 게시판입니다. 올린 닉네임과 전적은 이 게임을 하는
+      모든 사람에게 보이고, 막을 방법이 없어 누군가 가짜 기록을 올릴 수도 있습니다.
+      올리고 싶지 않으면 체크를 꺼 주세요. 끄면 서버에 남긴 기록도 지웁니다.
+    </div>`;
 }
 
 function renderStatsPanel() {
@@ -383,7 +384,7 @@ function renderStatsPanel() {
     <div class="stats-footer">
       <span class="stats-note">전적은 이 브라우저에만 저장되며, 게임 결과로만 갱신됩니다. 기기나 브라우저를 바꾸면 따로 쌓입니다.
       랭킹의 다른 사람 전적은 그 사람이 마지막으로 올린 시점의 기록이며, 이름 옆에 그 시점을 적었습니다.
-      그룹 코드를 쓰지 않으면 같이 대전한 사람만 보입니다.</span>
+      90일 넘게 올라오지 않은 기록은 숨깁니다.</span>
     </div>`;
 }
 
@@ -395,7 +396,7 @@ function toggleStatsPanel(force) {
     renderStatsPanel();
     // 창을 열 때 그룹 기록을 한 번 불러온다. 매번 부르면 느리므로
     // 마지막으로 불러온 지 1분이 지났을 때만.
-    if (boardGroup() && Date.now() - (BOARD.at || 0) > 60000) boardRefresh();
+    if (Date.now() - (BOARD.at || 0) > 60000) boardRefresh();
   }
   overlay.classList.toggle('hidden', !show);
 }
@@ -414,6 +415,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const body = document.getElementById('statsBody');
   if (body) {
     body.addEventListener('click', (e) => {
+      if (e.target && e.target.id === 'shareChk') {
+        const on = boardSetShare(e.target.checked);
+        if (on) boardPublish();
+        else boardWithdraw(); // 안 올리기로 했으면 서버에서도 내린다
+        return;
+      }
       const sortEl = e.target.closest('[data-board-sort]');
       if (sortEl) {
         BOARD.sort = sortEl.dataset.boardSort;
@@ -429,19 +436,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const btnEl = e.target.closest('[data-stats-act]');
       if (!btnEl) return;
       const act = btnEl.dataset.statsAct;
-      if (act === 'saveGroup') {
-        const input = document.getElementById('groupInput');
-        const before = boardGroup();
-        const after = boardSetGroup(input ? input.value : '');
-        if (before && before !== after) boardGroupWithdraw(before); // 옛 그룹에서 내 기록을 지운다
-        BOARD.players = [];
-        BOARD.status = 'idle';
-        BOARD.msg = '';
-        renderStatsPanel();
-        if (after) boardRefresh();
-        return;
-      }
-      if (act === 'refreshGroup') {
+      if (act === 'refreshBoard') {
         boardRefresh();
         return;
       }
@@ -453,7 +448,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (G && (!window.NET || NET.mode !== 'online')) {
           G.players[0].name = statsMyDisplayName();
         }
-        boardGroupPublish(); // 그룹에 올라간 이름도 갱신
+        boardPublish(); // 순위표에 올라간 이름도 갱신
         renderStatsPanel();
         render();
       }
