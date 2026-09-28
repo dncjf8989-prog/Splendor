@@ -249,18 +249,6 @@ function boardMyTopic() {
   return `${boardRoot()}/${statsProfile().id}`;
 }
 
-// 올리지 않을 수도 있다. 기본은 올리기.
-function boardShareEnabled() {
-  return statsProfile().share !== false;
-}
-
-function boardSetShare(on) {
-  const p = statsProfile();
-  p.share = !!on;
-  statsWriteJson(PROFILE_KEY, p);
-  return p.share;
-}
-
 // 브로커 전부에 붙어 한 가지 일을 시킨다. 한 곳이라도 되면 성공이다.
 function boardBrokers(job) {
   return new Promise((resolve) => {
@@ -315,25 +303,12 @@ function boardBrokers(job) {
 
 // 내 기록을 남겨둔다. retain이라 나중에 들어온 사람도 바로 받는다.
 function boardPublish() {
-  if (!boardRelayReady() || !boardShareEnabled()) return Promise.resolve(false);
+  if (!boardRelayReady()) return Promise.resolve(false);
   const body = JSON.stringify(boardMyRecord());
   const topic = boardMyTopic();
   return boardBrokers((client, done) => {
     try {
       client.publish(topic, body, { qos: 0, retain: true }, () => done(true));
-    } catch (e) {
-      done(false);
-    }
-  });
-}
-
-// 랭킹에서 내 기록을 내린다 (빈 값을 retain으로 덮으면 사라진다).
-function boardWithdraw() {
-  if (!boardRelayReady()) return Promise.resolve(false);
-  const topic = boardMyTopic();
-  return boardBrokers((client, done) => {
-    try {
-      client.publish(topic, '', { qos: 0, retain: true }, () => done(true));
     } catch (e) {
       done(false);
     }

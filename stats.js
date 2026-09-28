@@ -273,7 +273,6 @@ function statsRankingHtml(filter) {
 
 // 불러오기 줄 (전체 랭킹)
 function statsGroupRowHtml() {
-  const on = boardShareEnabled();
   let state = '';
   if (BOARD.status === 'loading') {
     state = '<span class="group-state">불러오는 중...</span>';
@@ -286,13 +285,9 @@ function statsGroupRowHtml() {
   return `<div class="group-row">
       <button data-stats-act="refreshBoard">새로고침</button>
       ${state}
-      <label class="board-toggle">
-        <input type="checkbox" id="shareChk"${on ? ' checked' : ''}> 내 전적 올리기
-      </label>
     </div>
     <div class="stats-note group-hint">
       온라인 대전이 끝나면 내 전적이 자동으로 올라가고, 이 창을 열면 다른 사람들의 전적을 불러옵니다.
-      올리고 싶지 않으면 체크를 꺼 주세요.
     </div>`;
 }
 
@@ -414,12 +409,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const body = document.getElementById('statsBody');
   if (body) {
     body.addEventListener('click', (e) => {
-      if (e.target && e.target.id === 'shareChk') {
-        const on = boardSetShare(e.target.checked);
-        if (on) boardPublish();
-        else boardWithdraw(); // 안 올리기로 했으면 서버에서도 내린다
-        return;
-      }
       const sortEl = e.target.closest('[data-board-sort]');
       if (sortEl) {
         BOARD.sort = sortEl.dataset.boardSort;
