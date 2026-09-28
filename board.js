@@ -109,10 +109,24 @@ function boardShareList() {
   return [boardMyRecord()].concat(Object.keys(map).map((k) => map[k])).slice(0, BOARD_MAX_PLAYERS);
 }
 
-// 랭킹에 쓸 전체 명단 (내 기록은 항상 지금 것으로)
+// 랭킹에 쓸 전체 명단. 세 갈래에서 모은다.
+//   1) 내 기록 - 항상 지금 것이고, 남이 덮어쓸 수 없다
+//   2) 방에서 만나 받아둔 사람들
+//   3) 그룹에서 불러온 사람들
+// 같은 사람이 겹치면 더 최근 것을 쓴다.
 function boardAll() {
   const map = boardRosterLoad();
-  return [boardMyRecord()].concat(Object.keys(map).map((k) => map[k]));
+  const mine = boardMyRecord();
+  const out = Object.create(null);
+  Object.keys(map).forEach((k) => {
+    out[k] = map[k];
+  });
+  (BOARD.players || []).forEach((r) => {
+    const prev = out[r.id];
+    if (!prev || r.at >= prev.at) out[r.id] = r;
+  });
+  delete out[mine.id];
+  return [mine].concat(Object.keys(out).map((k) => out[k]));
 }
 
 function boardKnownCount() {
@@ -194,4 +208,267 @@ function boardAgo(at) {
 // 판이 끝나 내 기록이 바뀌면 같은 방 사람들에게 알린다.
 function boardShareResult() {
   if (typeof netShareRecord === 'function') netShareRecord();
+  boardGroupPublish(); // 그룹을 쓰고 있으면 거기에도 올린다
+}
+
+// ============ 랭킹 그룹 (같이 안 해본 사람도 바로 조회) ============
+// 방에서 주고받는 것만으로는 "나와 붙어본 사람"밖에 못 본다. 그룹 코드를 정해
+// 같이 쓰면, 각자 자기 기록을 중계 서버에 남겨두고(retain) 서로 바로 불러온다.
+//
+// 중계 서버는 누구나 들어올 수 있는 공개 서버다. 그래서 올리는 내용은 그룹
+// 코드로 만든 열쇠로 잠근다(AES-GCM). 코드를 모르면 이름도 전적도 읽을 수
+// 없고, 남의 그룹에 가짜 기록을 끼워 넣을 수도 없다. 주제 이름에도 코드를
+// 그대로 쓰지 않고 짧게 접어 넣는다.
+//
+// 그러므로 그룹 코드는 사실상 비밀번호다. 아는 사람끼리만 나눠 써야 한다.
+
+// relay.js보다 먼저 읽힐 수 있으므로 쓸 때 계산한다 (top-level const는 TDZ에 걸린다)
+function groupRoot() {
+  return `${RELAY_ROOT}/g`;
+}
+const GROUP_FETCH_MS = 4000;
+const GROUP_KDF_ROUNDS = 60000;
+
+BOARD.status = 'idle'; // idle | loading | ok | error
+BOARD.msg = '';
+BOARD.at = 0;
+BOARD.players = []; // 그룹에서 불러온 사람들
+
+function boardGroup() {
+  return statsProfile().group || '';
+}
+
+function boardSetGroup(code) {
+  const p = statsProfile();
+  p.group = String(code || '').trim().slice(0, 24);
+  statsWriteJson(PROFILE_KEY, p);
+  return p.group;
+}
+
+function boardCryptoOk() {
+  return (
+    typeof crypto !== 'undefined' &&
+    !!crypto.subtle &&
+    !!crypto.getRandomValues &&
+    typeof TextEncoder !== 'undefined'
+  );
+}
+
+// 주제 이름에 쓸 짧은 지문. 코드 자체를 드러내지 않기 위한 것이고,
+// 어쩌다 겹치더라도 내용을 못 여니 그냥 건너뛰게 된다.
+function boardSlug(code) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < code.length; i++) {
+    h ^= code.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return ('0000000' + h.toString(16)).slice(-8);
+}
+
+let boardKeyCache = { code: null, key: null };
+
+function boardKey(code) {
+  if (boardKeyCache.code === code && boardKeyCache.key) return Promise.resolve(boardKeyCache.key);
+  const enc = new TextEncoder();
+  return crypto.subtle
+    .importKey('raw', enc.encode(code), 'PBKDF2', false, ['deriveKey'])
+    .then((base) =>
+      crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: enc.encode('splendor-lite-board'), iterations: GROUP_KDF_ROUNDS, hash: 'SHA-256' },
+        base,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      )
+    )
+    .then((key) => {
+      boardKeyCache = { code, key };
+      return key;
+    });
+}
+
+function boardToB64(bytes) {
+  let s = '';
+  const a = new Uint8Array(bytes);
+  for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]);
+  return btoa(s);
+}
+
+function boardFromB64(text) {
+  const s = atob(text);
+  const a = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i);
+  return a;
+}
+
+function boardSeal(code, obj) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  return boardKey(code)
+    .then((key) => crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(obj))))
+    .then((ct) => JSON.stringify({ v: 1, iv: boardToB64(iv), d: boardToB64(ct) }));
+}
+
+// 열지 못하면 null. 다른 그룹 것이거나 장난친 것이므로 조용히 버린다.
+function boardOpen(code, text) {
+  let box;
+  try {
+    box = JSON.parse(text);
+  } catch (e) {
+    return Promise.resolve(null);
+  }
+  if (!box || box.v !== 1 || typeof box.iv !== 'string' || typeof box.d !== 'string') {
+    return Promise.resolve(null);
+  }
+  return boardKey(code)
+    .then((key) => crypto.subtle.decrypt({ name: 'AES-GCM', iv: boardFromB64(box.iv) }, key, boardFromB64(box.d)))
+    .then((buf) => JSON.parse(new TextDecoder().decode(buf)))
+    .catch(() => null);
+}
+
+// 브로커 전부에 붙어 한 가지 일을 시킨다. 한 곳이라도 되면 성공이다.
+function boardBrokers(job) {
+  return new Promise((resolve) => {
+    let left = RELAY_URLS.length;
+    let ok = false;
+    const clients = [];
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      clients.forEach((c) => {
+        try {
+          c.end(true);
+        } catch (e) {
+          /* noop */
+        }
+      });
+      resolve(ok);
+    };
+    const timer = setTimeout(finish, RELAY_CONNECT_MS + 2000);
+    const one = (good) => {
+      ok = ok || good;
+      left -= 1;
+      if (left <= 0) finish();
+    };
+    RELAY_URLS.forEach((url) => {
+      let client;
+      try {
+        client = mqtt.connect(url, {
+          clientId: 'sl-g-' + relayRandomId(),
+          connectTimeout: RELAY_CONNECT_MS,
+          reconnectPeriod: 0,
+          clean: true,
+        });
+      } catch (e) {
+        one(false);
+        return;
+      }
+      clients.push(client);
+      let settled = false;
+      const mine = (good) => {
+        if (settled) return;
+        settled = true;
+        one(good);
+      };
+      client.on('connect', () => job(client, mine));
+      client.on('error', () => mine(false));
+    });
+  });
+}
+
+// 내 기록을 그룹 주제에 남겨둔다. retain이라 나중에 켠 사람도 바로 받는다.
+function boardGroupPublish() {
+  const code = boardGroup();
+  if (!code || !relayAvailable() || !boardCryptoOk()) return Promise.resolve(false);
+  const topic = `${groupRoot()}/${boardSlug(code)}/${statsProfile().id}`;
+  return boardSeal(code, boardMyRecord()).then((body) =>
+    boardBrokers((client, done) => {
+      try {
+        client.publish(topic, body, { qos: 0, retain: true }, () => done(true));
+      } catch (e) {
+        done(false);
+      }
+    })
+  );
+}
+
+// 그룹에서 내 기록을 지운다 (빈 값을 retain으로 덮으면 사라진다).
+function boardGroupWithdraw(code) {
+  if (!code || !relayAvailable()) return Promise.resolve(false);
+  const topic = `${groupRoot()}/${boardSlug(code)}/${statsProfile().id}`;
+  return boardBrokers((client, done) => {
+    try {
+      client.publish(topic, '', { qos: 0, retain: true }, () => done(true));
+    } catch (e) {
+      done(false);
+    }
+  });
+}
+
+// 그룹에 올라와 있는 기록을 전부 받아 온다.
+function boardGroupFetch() {
+  const code = boardGroup();
+  if (!code) return Promise.resolve({ ok: false, msg: '', players: [] });
+  if (!relayAvailable()) {
+    return Promise.resolve({ ok: false, msg: '중계 서버를 쓸 수 없습니다. 스크립트가 차단되었을 수 있습니다.', players: [] });
+  }
+  if (!boardCryptoOk()) {
+    return Promise.resolve({ ok: false, msg: '이 브라우저에서는 그룹 랭킹을 쓸 수 없습니다.', players: [] });
+  }
+
+  const raw = [];
+  let reached = 0;
+  return boardBrokers((client, done) => {
+    client.subscribe(`${groupRoot()}/${boardSlug(code)}/+`, { qos: 0 }, (err) => {
+      if (err) {
+        done(false);
+        return;
+      }
+      reached += 1;
+      // 보관된 기록이 도착할 시간을 준다
+      setTimeout(() => done(true), GROUP_FETCH_MS);
+    });
+    client.on('message', (topic, payload) => {
+      const text = String(payload);
+      if (text) raw.push(text);
+    });
+  }).then(() => {
+    if (!reached) {
+      return { ok: false, msg: '중계 서버에 연결하지 못했습니다. 잠시 뒤 다시 시도해 주세요.', players: [] };
+    }
+    return Promise.all(raw.map((t) => boardOpen(code, t))).then((list) => {
+      const found = Object.create(null);
+      list.forEach((obj) => {
+        const rec = boardSanitize(obj);
+        if (!rec) return;
+        const prev = found[rec.id];
+        if (!prev || rec.at >= prev.at) found[rec.id] = rec;
+      });
+      return { ok: true, msg: '', players: Object.keys(found).map((k) => found[k]) };
+    });
+  });
+}
+
+// 화면의 "새로고침". 내 것을 올리고 나서 전부 받아 온다.
+function boardRefresh() {
+  if (BOARD.status === 'loading') return Promise.resolve();
+  if (!boardGroup()) {
+    BOARD.status = 'idle';
+    BOARD.players = [];
+    renderStatsPanel();
+    return Promise.resolve();
+  }
+  BOARD.status = 'loading';
+  BOARD.msg = '';
+  renderStatsPanel();
+  return boardGroupPublish()
+    .then(() => boardGroupFetch())
+    .then((res) => {
+      BOARD.status = res.ok ? 'ok' : 'error';
+      BOARD.msg = res.msg;
+      BOARD.players = res.players;
+      BOARD.at = Date.now();
+      renderStatsPanel();
+    });
 }

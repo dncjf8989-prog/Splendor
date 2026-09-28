@@ -233,12 +233,16 @@ function statsRankingHtml(filter) {
     .map(([k, label]) => `<button class="stats-sort${sort === k ? ' active' : ''}" data-board-sort="${k}">${label}</button>`)
     .join('');
 
+  const group = statsGroupRowHtml();
+
   if (!rows.length) {
     const known = boardKnownCount();
-    const msg = known
-      ? '이 인원수로 치른 온라인 대전 기록이 아직 없습니다.'
-      : '아직 같이 대전해 본 사람이 없습니다. 온라인 대전을 한 판 하면 서로의 전적이 오갑니다.';
-    return `<div class="stats-sorts">${sortTabs}</div><div class="stats-empty-box">${msg}</div>`;
+    const msg = boardGroup()
+      ? '이 그룹에 아직 기록이 없습니다. 온라인 대전을 한 판 하면 올라갑니다.'
+      : known
+        ? '이 인원수로 치른 온라인 대전 기록이 아직 없습니다.'
+        : '아직 같이 대전해 본 사람이 없습니다. 온라인 대전을 한 판 하거나, 위에 그룹 코드를 넣으면 같은 코드를 쓰는 사람들이 바로 보입니다.';
+    return `${group}<div class="stats-sorts">${sortTabs}</div><div class="stats-empty-box">${msg}</div>`;
   }
 
   const body = rows
@@ -261,9 +265,35 @@ function statsRankingHtml(filter) {
       ? `승률 순위는 ${BOARD_MIN_GAMES}전 이상만 위쪽에 놓습니다. 적은 판수로 100%가 1등이 되지 않도록 한 것입니다.`
       : '';
 
-  return `<div class="stats-sorts">${sortTabs}</div>
+  return `${group}<div class="stats-sorts">${sortTabs}</div>
     <table class="stats-table rank-table"><tbody>${body}</tbody></table>
     ${note ? `<div class="stats-note rank-note">${note}</div>` : ''}`;
+}
+
+// 그룹 코드 입력줄 + 불러오기 상태
+function statsGroupRowHtml() {
+  const code = boardGroup();
+  let state = '';
+  if (BOARD.status === 'loading') {
+    state = '<span class="group-state">불러오는 중...</span>';
+  } else if (BOARD.status === 'error') {
+    state = `<span class="group-state group-bad">${escapeHtml(BOARD.msg || '불러오지 못했습니다')}</span>`;
+  } else if (BOARD.status === 'ok') {
+    state = `<span class="group-state">${BOARD.players.length}명 · ${boardAgo(BOARD.at)} 기준</span>`;
+  }
+
+  const hint = code
+    ? '같은 코드를 쓰는 사람들의 전적이 함께 보입니다. 코드를 비우면 올리기를 멈추고 이 기기에서 지웁니다.'
+    : '코드를 정해 같이 쓰면, 한 번도 안 붙어본 사람의 전적도 바로 볼 수 있습니다. 코드는 비밀번호처럼 아는 사람끼리만 나눠 쓰세요.';
+
+  return `<div class="group-row">
+      <label for="groupInput">랭킹 그룹 코드</label>
+      <input id="groupInput" maxlength="24" autocomplete="off" placeholder="예: 우리회사" value="${escapeHtml(code)}">
+      <button data-stats-act="saveGroup">저장</button>
+      <button data-stats-act="refreshGroup"${code ? '' : ' disabled'}>새로고침</button>
+      ${state}
+    </div>
+    <div class="stats-note group-hint">${hint}</div>`;
 }
 
 function renderStatsPanel() {
@@ -344,7 +374,7 @@ function renderStatsPanel() {
       ${byCount}
     </div>
 
-    <div class="stats-section-label">랭킹<span class="stats-hint">같이 대전해 본 사람들 · 온라인 기록만</span></div>
+    <div class="stats-section-label">랭킹<span class="stats-hint">온라인 대전 기록만 셉니다</span></div>
     ${statsRankingHtml(f)}
 
     <div class="stats-section-label">상대별 전적<span class="stats-hint">1:1(2인) 대전만 기록합니다</span></div>
@@ -352,7 +382,8 @@ function renderStatsPanel() {
 
     <div class="stats-footer">
       <span class="stats-note">전적은 이 브라우저에만 저장되며, 게임 결과로만 갱신됩니다. 기기나 브라우저를 바꾸면 따로 쌓입니다.
-      랭킹에 있는 다른 사람의 전적은 같이 대전할 때 주고받은 것이라, 마지막으로 만난 시점의 기록입니다.</span>
+      랭킹의 다른 사람 전적은 그 사람이 마지막으로 올린 시점의 기록이며, 이름 옆에 그 시점을 적었습니다.
+      그룹 코드를 쓰지 않으면 같이 대전한 사람만 보입니다.</span>
     </div>`;
 }
 
@@ -360,7 +391,12 @@ function toggleStatsPanel(force) {
   const overlay = document.getElementById('statsOverlay');
   if (!overlay) return;
   const show = force != null ? force : overlay.classList.contains('hidden');
-  if (show) renderStatsPanel();
+  if (show) {
+    renderStatsPanel();
+    // 창을 열 때 그룹 기록을 한 번 불러온다. 매번 부르면 느리므로
+    // 마지막으로 불러온 지 1분이 지났을 때만.
+    if (boardGroup() && Date.now() - (BOARD.at || 0) > 60000) boardRefresh();
+  }
   overlay.classList.toggle('hidden', !show);
 }
 
@@ -392,7 +428,24 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const btnEl = e.target.closest('[data-stats-act]');
       if (!btnEl) return;
-      if (btnEl.dataset.statsAct === 'saveName') {
+      const act = btnEl.dataset.statsAct;
+      if (act === 'saveGroup') {
+        const input = document.getElementById('groupInput');
+        const before = boardGroup();
+        const after = boardSetGroup(input ? input.value : '');
+        if (before && before !== after) boardGroupWithdraw(before); // 옛 그룹에서 내 기록을 지운다
+        BOARD.players = [];
+        BOARD.status = 'idle';
+        BOARD.msg = '';
+        renderStatsPanel();
+        if (after) boardRefresh();
+        return;
+      }
+      if (act === 'refreshGroup') {
+        boardRefresh();
+        return;
+      }
+      if (act === 'saveName') {
         const input = document.getElementById('nickInput');
         statsSetName(input ? input.value : '');
         // 싱글 플레이는 진행 중인 판에도 바로 반영한다.
@@ -400,6 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (G && (!window.NET || NET.mode !== 'online')) {
           G.players[0].name = statsMyDisplayName();
         }
+        boardGroupPublish(); // 그룹에 올라간 이름도 갱신
         renderStatsPanel();
         render();
       }
