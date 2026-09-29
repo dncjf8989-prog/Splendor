@@ -225,14 +225,20 @@ function netSanitizeProfile(profile) {
   const id = typeof profile.id === 'string' ? profile.id.slice(0, 40) : '';
   const name = typeof profile.name === 'string' ? profile.name.replace(/\s+/g, ' ').trim().slice(0, 12) : '';
   if (!id) return null;
-  return { id, name: name || '상대' };
+  const out = { id, name: name || '상대' };
+  // 자리 번호는 판 기록에 참가자를 적을 때 필요하다. 없애면 누가 어느 자리였는지
+  // 알 수 없어 판이 아예 기록되지 않는다.
+  if (Number.isInteger(profile.seat)) out.seat = profile.seat;
+  return out;
 }
 
 // 자리 번호가 붙은 전체 참가자 프로필 (호스트가 만들어 게스트에게 내려준다)
 function netProfileList() {
-  const list = [Object.assign({ seat: 0 }, netMyProfile())];
+  // 자리 번호는 방장이 정한 것이 맞다. 게스트가 프로필에 실어 보낸 값이 있어도
+  // 덮어쓰지 못하도록 뒤에 둔다.
+  const list = [Object.assign({}, netMyProfile(), { seat: 0 })];
   NET.links.forEach((link) => {
-    if (link.profile) list.push(Object.assign({ seat: link.seat }, link.profile));
+    if (link.profile) list.push(Object.assign({}, link.profile, { seat: link.seat }));
   });
   return list;
 }
