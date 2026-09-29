@@ -6,7 +6,7 @@
 <title>예전 판 등록 - 스플렌더 라이트</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20260929c">
+<link rel="stylesheet" href="style.css?v=20260929d">
 <style>
   #wrap { max-width: 720px; margin: 0 auto; padding: 24px 16px 60px; }
   #wrap h1 { font-size: 20px; margin: 0 0 6px; }
@@ -37,7 +37,7 @@
   <h1>예전 판 등록</h1>
   <p class="lead">
     랭킹이 판 기록 방식으로 바뀌기 전에 둔 판들을 한 번만 등록합니다.
-    최호동수석님 전적(5전 5승)과 상대별 전적으로 역산해 확인한 5판입니다.<br>
+    최호동수석님 전적과 상대별 전적으로 역산해 확인한 6판입니다.<br>
     <b>이 페이지는 한 번만 쓰면 됩니다.</b> 같은 판을 두 번 넣지 않으니 실수로 여러 번 눌러도 괜찮습니다.
   </p>
 
@@ -57,21 +57,25 @@
   <a class="backlink" href="./">← 게임으로 돌아가기</a>
 </div>
 
-<script src="db.js?v=20260929c"></script>
+<script src="db.js?v=20260929d"></script>
 <script>
 'use strict';
 
-// 역산으로 확인한 예전 판 (최호동수석 5전 5승 / 인턴재박이 3승 / 차주 1승 + 3인 1판)
-//   2인 3판: 최호동수석 > 인턴재박이
-//   2인 1판: 최호동수석 > 차주
-//   3인 1판: 최호동수석 > 인턴재박이, 차주
-// 검산: 판별 인원 합 11 = 각자 판수 합 11, 총 승수 5 = 판수 5
+// 판 기록 방식으로 바꾸기 전에 둔 판들.
+// 'me'는 이 브라우저 주인이고, 나머지는 상대별 전적에서 이름으로 찾는다.
+//
+// 1~5는 최호동수석 5전 5승 / 인턴재박이 3승 / 차주 1승 + 3인 1판에서 역산한 것.
+// 6은 그 뒤에 인턴재박이에게 진 2인 판이다 (기록 버그로 서버에 안 올라갔다).
+//
+// 검산: 판별 인원 합 13 = 각자 판수 합 13 (최호 6 + 인턴 5 + 차주 2),
+//       총 승수 6 = 판수 6
 var PAST = [
-  { id: 'old-1', n: 2, win: 'me', lose: ['인턴재박이'] },
-  { id: 'old-2', n: 2, win: 'me', lose: ['인턴재박이'] },
-  { id: 'old-3', n: 2, win: 'me', lose: ['인턴재박이'] },
-  { id: 'old-4', n: 2, win: 'me', lose: ['차주'] },
-  { id: 'old-5', n: 3, win: 'me', lose: ['인턴재박이', '차주'] },
+  { id: 'old-1', n: 2, p: [['me', 'w'], ['인턴재박이', 'l']] },
+  { id: 'old-2', n: 2, p: [['me', 'w'], ['인턴재박이', 'l']] },
+  { id: 'old-3', n: 2, p: [['me', 'w'], ['인턴재박이', 'l']] },
+  { id: 'old-4', n: 2, p: [['me', 'w'], ['차주', 'l']] },
+  { id: 'old-5', n: 3, p: [['me', 'w'], ['인턴재박이', 'l'], ['차주', 'l']] },
+  { id: 'old-6', n: 2, p: [['인턴재박이', 'w'], ['me', 'l']] },
 ];
 
 function readProfile() {
@@ -140,15 +144,15 @@ if (!people.me) {
 
 function buildGames() {
   var out = [];
-  // 예전 판이므로 시각을 과거로 둔다 (하루 간격)
+  // 예전 판이므로 시각을 과거로 둔다 (한 시간 간격, 적어둔 순서대로)
   var base = Date.now() - 7 * 86400000;
   PAST.forEach(function (g, i) {
-    var p = [{ id: people.me.id, name: people.me.name, r: 'w' }];
+    var p = [];
     var ok = true;
-    g.lose.forEach(function (n) {
-      var who = people.byName[n];
+    g.p.forEach(function (row) {
+      var who = row[0] === 'me' ? people.me : people.byName[row[0]];
       if (!who) { ok = false; return; }
-      p.push({ id: who.id, name: who.name, r: 'l' });
+      p.push({ id: who.id, name: who.name, r: row[1] });
     });
     if (!ok || p.length !== g.n) return;
     out.push({ key: 'g-' + g.id, body: { at: base + i * 3600000, n: g.n, p: p } });
