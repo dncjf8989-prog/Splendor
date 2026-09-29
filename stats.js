@@ -167,13 +167,17 @@ function maybeRecordResult() {
 
   STATS.lastRecordedGameId = G.gameId;
   statsSave(s);
-  boardShareResult(); // 바뀐 내 기록을 같은 방 사람들에게
+  // 판 자체를 보관소에 남긴다. 전적은 이 기록들을 세어서 계산한다.
+  // db.js가 차단돼도 게임은 그대로 진행돼야 한다
+  if (window.NET && NET.mode === 'online' && typeof dbGameRecord === 'function') {
+    boardSaveGame(dbGameRecord());
+  }
   renderStatsPanel();
 }
 
 // 대전이 중도에 끝난 경우의 기록. 나간 사람은 패('l'), 남은 사람은 승('w').
 // 이미 끝난 판은 정상 집계(maybeRecordResult)를 따르므로 건드리지 않는다.
-function statsRecordAbandoned(result) {
+function statsRecordAbandoned(result, leaverId) {
   if (!G || !G.gameId || G.gameOver) return false;
   if (!window.NET || NET.mode !== 'online') return false;
 
@@ -196,19 +200,20 @@ function statsRecordAbandoned(result) {
 
   STATS.lastRecordedGameId = G.gameId;
   statsSave(s);
-  boardShareResult();
+  // 중도에 끝난 판도 남긴다. 나간 사람이 누구인지는 부른 쪽이 알려준다.
+  if (typeof dbGameRecordAbandoned === 'function') boardSaveGame(dbGameRecordAbandoned(leaverId));
   renderStatsPanel();
   return true;
 }
 
 // 내가 대전 도중에 나갔다 -> 패
 function statsRecordForfeit() {
-  return statsRecordAbandoned('l');
+  return statsRecordAbandoned('l', statsProfile().id);
 }
 
 // 상대가 대전 도중에 나갔다 -> 부전승
-function statsRecordWalkover() {
-  return statsRecordAbandoned('w');
+function statsRecordWalkover(leaverId) {
+  return statsRecordAbandoned('w', leaverId);
 }
 
 // ============ 렌더링 ============
@@ -240,13 +245,14 @@ function statsRankingHtml(filter) {
   const group = statsGroupRowHtml();
 
   if (!rows.length) {
-    const known = boardKnownCount();
     const msg =
       BOARD.status === 'loading'
         ? '불러오는 중입니다...'
-        : known || BOARD.players.length
-          ? '이 인원수로 치른 온라인 대전 기록이 아직 없습니다.'
-          : '아직 올라온 기록이 없습니다. 온라인 대전을 한 판 하면 순위표에 올라갑니다.';
+        : BOARD.status === 'error'
+          ? '랭킹을 불러오지 못했습니다. 새로고침을 눌러 보세요.'
+          : BOARD.players.length
+            ? '이 인원수로 치른 온라인 대전 기록이 아직 없습니다.'
+            : '아직 기록된 판이 없습니다. 온라인 대전을 한 판 하면 순위표에 올라갑니다.';
     return `${group}<div class="stats-sorts">${sortTabs}</div><div class="stats-empty-box">${msg}</div>`;
   }
 

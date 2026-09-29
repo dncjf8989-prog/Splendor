@@ -266,20 +266,6 @@ function netSendToHost(msg) {
   if (link) netSendTo(link.conn, msg);
 }
 
-// 전적 랭킹용 명단. 방장이면 전원에게, 게스트면 방장에게 보낸다.
-// 방장이 받으면 자기 것과 합쳐 다시 전원에게 돌리므로 방 안에서 하나로 모인다.
-function netShareRoster() {
-  if (NET.mode !== 'online' || !NET.links.length) return;
-  const msg = { type: 'roster', list: boardShareList() };
-  if (NET.role === 'host') netBroadcast(msg);
-  else netSendToHost(msg);
-}
-
-// 판이 끝나 내 기록이 바뀌었을 때 부른다.
-function netShareRecord() {
-  netShareRoster();
-}
-
 // 채팅도 상태와 같은 경로로 오간다. 방장이면 전원에게, 게스트면 방장에게.
 function netSendChat(entry) {
   const msg = { type: 'chat', seat: entry.seat, name: entry.name, text: entry.text };
@@ -382,21 +368,11 @@ function netHostHandle(conn, msg) {
 
   if (msg.type === 'hello') {
     if (link) link.profile = netSanitizeProfile(msg.profile);
-    boardMergeMany(msg.roster);
-    netShareRoster(); // 새로 온 사람 것까지 합쳐 전원에게
     netUpdateLobby();
     // 정원이 다 찼고 모두 프로필을 보냈으면 시작한다.
     if (NET.status === 'waiting' && NET.links.length === NET.roomSize - 1 && NET.links.every((l) => l.profile)) {
       netHostStartGame();
     }
-    return;
-  }
-
-  if (msg.type === 'roster') {
-    // 게스트가 자기 기록을 보냈다. 합쳐서 전원에게 다시 돌린다.
-    if (boardMergeMany(msg.list)) netShareRoster();
-    else netSendTo(conn, { type: 'roster', list: boardShareList() });
-    renderStatsPanel();
     return;
   }
 
@@ -460,8 +436,13 @@ function netHostLinkGone(conn, left) {
   if (NET.status === 'active') {
     const who = gone.profile ? gone.profile.name : '참가자';
     // 진행 중에 한 명이라도 빠지면 판을 이어갈 수 없다.
-    if (left) statsRecordWalkover(); // 연결을 정리하기 전에 기록한다
-    netBroadcast({ type: 'peerLeft', name: gone.profile ? gone.profile.name : '상대', left: !!left });
+    if (left) statsRecordWalkover(gone.profile ? gone.profile.id : null); // 연결을 정리하기 전에
+    netBroadcast({
+      type: 'peerLeft',
+      name: gone.profile ? gone.profile.name : '상대',
+      id: gone.profile ? gone.profile.id : null, // 나간 사람을 판 기록에 남기려면 필요하다
+      left: !!left,
+    });
     chatSystem(left ? `${who}님이 대전에서 나갔습니다.` : `${who}님의 연결이 끊어졌습니다.`);
     NET.status = 'error';
     NET.errorMsg = left
@@ -520,7 +501,7 @@ function netJoinRoom(rawCode) {
     NET.links = [{ conn, seat: null, profile: null }];
     conn.on('open', () => {
       netClearTimer();
-      netSendTo(conn, { type: 'hello', profile: netMyProfile(), roster: boardShareList() });
+      netSendTo(conn, { type: 'hello', profile: netMyProfile() });
     });
     conn.on('data', netGuestHandle);
     conn.on('close', netGuestHostGone);
@@ -568,12 +549,6 @@ function netGuestHandle(msg) {
     return;
   }
 
-  if (msg.type === 'roster') {
-    boardMergeMany(msg.list);
-    renderStatsPanel();
-    return;
-  }
-
   if (msg.type === 'state') {
     netApplyRemoteState(msg.state);
     return;
@@ -595,7 +570,7 @@ function netGuestHandle(msg) {
   if (msg.type === 'peerLeft') {
     const who = msg.name || '참가자';
     const left = !!msg.left;
-    if (left) statsRecordWalkover(); // 연결을 정리하기 전에 기록한다
+    if (left) statsRecordWalkover(typeof msg.id === 'string' ? msg.id : null);
     chatSystem(left ? `${who}님이 대전에서 나갔습니다.` : `${who}님의 연결이 끊어졌습니다.`);
     NET.status = 'error';
     NET.errorMsg = left
@@ -697,12 +672,16 @@ function netPageHide(persisted) {
   // 알림은 창이 닫히는 중이라 나갈 수도, 못 나갈 수도 있다.
   NET.hidingGameId = G.gameId;
   statsRecordForfeit();
-  if (NET.role === 'host') netBroadcast({ type: 'peerLeft', name: netMyProfile().name, left: true });
+  if (NET.role === 'host') {
+    netBroadcast({ type: 'peerLeft', name: netMyProfile().name, id: netMyProfile().id, left: true });
+  }
   else netSendToHost({ type: 'left' });
 }
 
 function netLeaveRoom() {
-  if (NET.role === 'host') netBroadcast({ type: 'peerLeft', name: netMyProfile().name, left: true });
+  if (NET.role === 'host') {
+    netBroadcast({ type: 'peerLeft', name: netMyProfile().name, id: netMyProfile().id, left: true });
+  }
   else netSendToHost({ type: 'left' });
   netCleanupPeer(true); // 나간다는 알림이 나갈 때까지 기다렸다 끊는다
   NET.status = 'idle';

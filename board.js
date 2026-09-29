@@ -46,94 +46,10 @@ function boardSanitize(raw) {
 
 // ---- 내 기록 ----
 // 랭킹에는 온라인 대전만 넣는다. AI를 이긴 것까지 섞으면 순위가 뜻이 없다.
-function boardMyRecord() {
-  const s = statsLoad();
-  return {
-    id: statsProfile().id,
-    name: statsMyDisplayName(),
-    at: Date.now(),
-    online: boardCounts(s.totals.online),
-  };
-}
-
-// ---- 받아둔 사람들 ----
-function boardRosterLoad() {
-  const raw = statsReadJson(ROSTER_KEY, null);
-  if (!raw || typeof raw !== 'object') return {};
-  const out = {};
-  Object.keys(raw).forEach((k) => {
-    const rec = boardSanitize(raw[k]);
-    if (rec) out[rec.id] = rec;
-  });
-  return out;
-}
-
-function boardRosterSave(map) {
-  // 오래 안 본 사람부터 잘라낸다
-  const list = Object.keys(map)
-    .map((k) => map[k])
-    .sort((a, b) => b.at - a.at)
-    .slice(0, BOARD_MAX_PLAYERS);
-  const out = {};
-  list.forEach((r) => {
-    out[r.id] = r;
-  });
-  statsWriteJson(ROSTER_KEY, out);
-}
-
-// 한 사람의 기록을 받아 넣는다. 더 최신 것만 남긴다.
-function boardMerge(raw) {
-  const rec = boardSanitize(raw);
-  if (!rec) return false;
-  if (rec.id === statsProfile().id) return false; // 내 기록은 내 것이 최신이다
-  const map = boardRosterLoad();
-  const prev = map[rec.id];
-  if (prev && prev.at > rec.at) return false;
-  map[rec.id] = rec;
-  boardRosterSave(map);
-  return true;
-}
-
-function boardMergeMany(list) {
-  if (!Array.isArray(list)) return 0;
-  let n = 0;
-  list.slice(0, BOARD_MAX_PLAYERS).forEach((r) => {
-    if (boardMerge(r)) n += 1;
-  });
-  return n;
-}
-
-// 방 안에 돌릴 명단: 내 기록 + 내가 아는 사람들
-function boardShareList() {
-  const map = boardRosterLoad();
-  return [boardMyRecord()].concat(Object.keys(map).map((k) => map[k])).slice(0, BOARD_MAX_PLAYERS);
-}
-
-// 랭킹에 쓸 전체 명단. 모두 "그 사람이 스스로 집계한 전체 전적"이다.
-//   1) 내 기록 - 항상 지금 것이고, 남이 덮어쓸 수 없다
-//   2) 방에서 만나 받아둔 그 사람의 기록
-//   3) 전체 랭킹에서 불러온 그 사람의 기록
-// 같은 사람이 겹치면 더 최근 것을 쓴다.
-//
-// 내가 같이 둔 판만 세어 대신 채우는 짓은 하지 않는다. 그러면 그 사람의 전체
-// 전적이 아니라 나와의 전적이 되어버려, 화면에 적힌 숫자의 뜻이 사람마다
-// 달라진다. 아직 한 번도 앱을 연 적 없는 사람은 그냥 나오지 않는다.
+// 랭킹에 쓸 명단. 전부 같은 판 기록에서 나온 값이다. 내 줄도 마찬가지라
+// 내 화면과 남의 화면에 서로 다른 숫자가 뜰 수 없다.
 function boardAll() {
-  const mine = boardMyRecord();
-  const out = Object.create(null);
-  const put = (r) => {
-    const prev = out[r.id];
-    if (!prev || r.at >= prev.at) out[r.id] = r;
-  };
-  const roster = boardRosterLoad();
-  Object.keys(roster).forEach((k) => put(roster[k]));
-  (BOARD.players || []).forEach(put);
-  delete out[mine.id];
-  return [mine].concat(Object.keys(out).map((k) => out[k]));
-}
-
-function boardKnownCount() {
-  return Object.keys(boardRosterLoad()).length;
+  return BOARD.players || [];
 }
 
 // ---- 순위 매기기 ----
@@ -208,178 +124,44 @@ function boardAgo(at) {
   return d < 100 ? `${d}일 전` : '오래전';
 }
 
-// 판이 끝나 내 기록이 바뀌면 알린다. 같은 방 사람들에게 한 번, 전체 랭킹에 한 번.
-function boardShareResult() {
-  if (typeof netShareRecord === 'function') netShareRecord();
-  boardPublish();
-}
-
 // ============ 전체 랭킹 ============
-// 모두가 같은 곳에 자기 기록을 남겨두고(retain) 서로 불러온다. 방에서 만난 적이
-// 없어도, 접속해 있지 않아도 보인다.
-//
-// 이것은 말 그대로 공개 게시판이다. 중계 서버는 누구나 들어올 수 있으므로
-//   - 올린 닉네임과 전적은 누구나 볼 수 있고
-//   - 마음만 먹으면 아무나 가짜 기록을 올릴 수 있다
-// 막을 방법이 없으니, 대신 말이 안 되는 값은 걸러내고(boardSanitize) 너무 오래된
-// 기록과 지나치게 많은 양은 잘라낸다. 아는 사람끼리 재미로 보는 순위표다.
-
-const BOARD_FETCH_MS = 4000; // 보관된 기록을 모으는 시간
-const BOARD_STALE_DAYS = 90; // 이보다 오래된 기록은 숨긴다
-const BOARD_FETCH_MAX = 500; // 한 번에 받아들일 기록 수 상한
+// 판 기록 보관소(db.js)에서 판들을 읽어 전적을 센다. 각자 신고한 숫자를 모으는
+// 것이 아니라, 모두가 같은 판 기록을 같은 방법으로 세므로 화면마다 값이 다를 수
+// 없다. 대전한 적 없는 사람도, 접속해 있지 않은 사람도 그대로 나온다.
 
 BOARD.status = 'idle'; // idle | loading | ok | error
 BOARD.msg = '';
 BOARD.at = 0;
-BOARD.players = []; // 전체 랭킹에서 불러온 사람들
+BOARD.players = []; // 판 기록에서 센 사람들
 
-// 중계 계층이 실제로 올라와 있는지. relay.js가 차단되면 이름 자체가 없으므로
-// typeof로 확인한다. (그냥 부르면 ReferenceError가 난다)
-function boardRelayReady() {
-  return (
-    typeof RELAY_ROOT === 'string' &&
-    typeof RELAY_URLS !== 'undefined' &&
-    typeof relayAvailable === 'function' &&
-    relayAvailable()
-  );
+// 판이 끝나면 그 판을 남긴다. 참가자 전원이 같은 자리에 같은 내용을 올린다.
+function boardSaveGame(rec) {
+  if (!rec || typeof dbSaveGame !== 'function') return Promise.resolve(false);
+  return dbSaveGame(rec);
 }
 
-function boardRoot() {
-  return `${RELAY_ROOT}/all`;
-}
-
-function boardMyTopic() {
-  return `${boardRoot()}/${statsProfile().id}`;
-}
-
-// 브로커 전부에 붙어 한 가지 일을 시킨다. 한 곳이라도 되면 성공이다.
-function boardBrokers(job) {
-  return new Promise((resolve) => {
-    let left = RELAY_URLS.length;
-    let ok = false;
-    const clients = [];
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      clients.forEach((c) => {
-        try {
-          c.end(true);
-        } catch (e) {
-          /* noop */
-        }
-      });
-      resolve(ok);
-    };
-    const timer = setTimeout(finish, RELAY_CONNECT_MS + BOARD_FETCH_MS + 2000);
-    const one = (good) => {
-      ok = ok || good;
-      left -= 1;
-      if (left <= 0) finish();
-    };
-    RELAY_URLS.forEach((url) => {
-      let client;
-      try {
-        client = mqtt.connect(url, {
-          clientId: 'sl-b-' + relayRandomId(),
-          connectTimeout: RELAY_CONNECT_MS,
-          reconnectPeriod: 0,
-          clean: true,
-        });
-      } catch (e) {
-        one(false);
-        return;
-      }
-      clients.push(client);
-      let settled = false;
-      const mine = (good) => {
-        if (settled) return;
-        settled = true;
-        one(good);
-      };
-      client.on('connect', () => job(client, mine));
-      client.on('error', () => mine(false));
-    });
-  });
-}
-
-// 내 기록을 남겨둔다. retain이라 나중에 들어온 사람도 바로 받는다.
-function boardPublish() {
-  if (!boardRelayReady()) return Promise.resolve(false);
-  const body = JSON.stringify(boardMyRecord());
-  const topic = boardMyTopic();
-  return boardBrokers((client, done) => {
-    try {
-      client.publish(topic, body, { qos: 0, retain: true }, () => done(true));
-    } catch (e) {
-      done(false);
-    }
-  });
-}
-
-// 올라와 있는 기록을 전부 받아 온다.
-function boardFetch() {
-  if (!boardRelayReady()) {
-    return Promise.resolve({
-      ok: false,
-      msg: '중계 서버를 쓸 수 없습니다. 스크립트가 차단되었을 수 있습니다.',
-      players: [],
-    });
-  }
-  const found = Object.create(null);
-  let seen = 0;
-  let reached = 0;
-
-  return boardBrokers((client, done) => {
-    client.subscribe(`${boardRoot()}/+`, { qos: 0 }, (err) => {
-      if (err) {
-        done(false);
-        return;
-      }
-      reached += 1;
-      setTimeout(() => done(true), BOARD_FETCH_MS); // 보관된 기록이 도착할 시간
-    });
-    client.on('message', (topic, payload) => {
-      if (seen >= BOARD_FETCH_MAX) return;
-      const text = String(payload);
-      if (!text) return; // 올리기를 끈 사람은 빈 값으로 지워져 있다
-      seen += 1;
-      let rec;
-      try {
-        rec = boardSanitize(JSON.parse(text));
-      } catch (e) {
-        return;
-      }
-      if (!rec) return;
-      const prev = found[rec.id];
-      if (!prev || rec.at >= prev.at) found[rec.id] = rec; // 더 최신 것만
-    });
-  }).then(() => {
-    if (!reached) {
-      return { ok: false, msg: '중계 서버에 연결하지 못했습니다. 잠시 뒤 다시 시도해 주세요.', players: [] };
-    }
-    const cutoff = Date.now() - BOARD_STALE_DAYS * 86400000;
-    const players = Object.keys(found)
-      .map((k) => found[k])
-      .filter((r) => r.at >= cutoff);
-    return { ok: true, msg: '', players };
-  });
-}
-
-// 화면의 "새로고침". 내 것을 올리고 나서 전부 받아 온다.
 function boardRefresh() {
   if (BOARD.status === 'loading') return Promise.resolve();
+  if (typeof dbLoadGames !== 'function' || !dbAvailable()) {
+    BOARD.status = 'error';
+    BOARD.msg = '이 브라우저에서는 랭킹을 불러올 수 없습니다.';
+    renderStatsPanel();
+    return Promise.resolve();
+  }
   BOARD.status = 'loading';
   BOARD.msg = '';
   renderStatsPanel();
-  return boardPublish()
-    .then(() => boardFetch())
-    .then((res) => {
-      BOARD.status = res.ok ? 'ok' : 'error';
-      BOARD.msg = res.msg;
-      BOARD.players = res.players;
+  return dbLoadGames()
+    .then((games) => {
+      BOARD.players = dbTally(games);
+      BOARD.games = games.length;
+      BOARD.status = 'ok';
       BOARD.at = Date.now();
+      renderStatsPanel();
+    })
+    .catch(() => {
+      BOARD.status = 'error';
+      BOARD.msg = '랭킹 서버에 연결하지 못했습니다. 잠시 뒤 다시 시도해 주세요.';
       renderStatsPanel();
     });
 }
