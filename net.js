@@ -441,7 +441,25 @@ function netHostLinkGone(conn, left) {
 
   if (NET.status === 'active') {
     const who = gone.profile ? gone.profile.name : '참가자';
-    // 진행 중에 한 명이라도 빠지면 판을 이어갈 수 없다.
+
+    // 3인 이상이고 아직 둘 이상 남으면 판을 이어간다. 나간 자리는 건너뛴다.
+    // (방장은 허브라서 방장이 나가면 게스트끼리 말이 통하지 않아 이어갈 수 없다.
+    //  이 함수는 방장 쪽에서만 도는 경로이므로 여기 오는 것은 언제나 게스트다)
+    const stillPlayable =
+      G && !G.gameOver && typeof markPlayerLeft === 'function' &&
+      activeSeats().filter((seat) => seat !== gone.seat).length >= 2;
+
+    if (stillPlayable) {
+      markPlayerLeft(gone.seat);
+      netBroadcast({ type: 'playerLeft', seat: gone.seat, name: who });
+      netBroadcast({ type: 'state', state: netSerializeState() });
+      chatSystem(`${who}님이 나갔습니다. 남은 사람끼리 계속합니다.`);
+      render();
+      renderNetPanel();
+      return;
+    }
+
+    // 여기부터는 이어갈 수 없는 경우 (2인이거나 혼자만 남는 경우)
     if (left) statsRecordWalkover(gone.profile ? gone.profile.id : null); // 연결을 정리하기 전에
     netBroadcast({
       type: 'peerLeft',
@@ -569,6 +587,15 @@ function netGuestHandle(msg) {
     NET.status = 'error';
     NET.errorMsg = '방이 가득 찼습니다.';
     netCleanupPeer();
+    renderNetPanel();
+    return;
+  }
+
+  if (msg.type === 'playerLeft') {
+    // 남은 사람끼리 계속한다. 자세한 판 상태는 뒤이어 오는 state가 채운다.
+    if (typeof markPlayerLeft === 'function' && Number.isInteger(msg.seat)) markPlayerLeft(msg.seat);
+    chatSystem(`${msg.name || '참가자'}님이 나갔습니다. 남은 사람끼리 계속합니다.`);
+    render();
     renderNetPanel();
     return;
   }

@@ -114,8 +114,11 @@ function statsBeats(a, b) {
 // 그 자리에 앉은 사람의 판 결과. 나뿐 아니라 상대 자리도 같은 기준으로 본다.
 function statsResultOf(seat) {
   if (seat == null || !G || !G.players[seat]) return null;
+  if (G.players[seat].left) return 'l'; // 도중에 나간 사람은 점수와 무관하게 패
   const me = G.players[seat];
-  const others = G.players.filter((_, i) => i !== seat);
+  // 나간 사람은 겨루는 대상이 아니다. 안 그러면 나간 사람 점수가 높을 때
+  // 끝까지 둔 사람이 진 것으로 잡힌다.
+  const others = G.players.filter((p, i) => i !== seat && !p.left);
   if (others.some((p) => statsBeats(p, me))) return 'l';
   if (others.some((p) => p.points === me.points && p.cards.length === me.cards.length)) return 'd';
   return 'w';
@@ -201,7 +204,12 @@ function statsRecordAbandoned(result, leaverId) {
   STATS.lastRecordedGameId = G.gameId;
   statsSave(s);
   // 중도에 끝난 판도 남긴다. 나간 사람이 누구인지는 부른 쪽이 알려준다.
-  if (typeof dbGameRecordAbandoned === 'function') boardSaveGame(dbGameRecordAbandoned(leaverId));
+  // 단, 남은 사람끼리 계속하는 판이면 여기서 쓰지 않는다. 판 기록은 한 번 쓰면
+  // 고칠 수 없으므로, 먼저 써버리면 끝까지 둔 진짜 결과가 묻힌다.
+  const continues = typeof gameContinuesWithoutMe === 'function' && gameContinuesWithoutMe();
+  if (!continues && typeof dbGameRecordAbandoned === 'function') {
+    boardSaveGame(dbGameRecordAbandoned(leaverId));
+  }
   renderStatsPanel();
   return true;
 }

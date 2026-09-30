@@ -1055,3 +1055,16 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* 대전 도중 나간 사람 자리 */
+.player-panel.player-left { opacity: 0.5; }
+.left-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  vertical-align: middle;
+}

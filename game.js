@@ -55,6 +55,7 @@ function newPlayer(name) {
     reserved: [],
     nobles: [],
     points: 0,
+    left: false, // 대전 도중에 나갔는가 (3인 이상은 남은 사람끼리 계속한다)
   };
 }
 
@@ -378,16 +379,78 @@ function chooseNoble(nobleId) {
   callback();
 }
 
+// ============ 나간 사람 건너뛰기 ============
+// 3인 이상에서 한 명이 나가도 판은 이어진다. 자리를 없애면 자리 번호가 전부
+// 밀려 동기화가 깨지므로, 자리는 그대로 두고 "나감"으로 표시해 건너뛴다.
+
+function activeSeats() {
+  const out = [];
+  G.players.forEach((p, i) => {
+    if (!p.left) out.push(i);
+  });
+  return out;
+}
+
+function nextActiveSeat(from) {
+  const n = G.players.length;
+  for (let k = 1; k <= n; k++) {
+    const i = (from + k) % n;
+    if (!G.players[i].left) return i;
+  }
+  return from;
+}
+
+// 한 바퀴의 마지막 차례. 나간 사람을 빼고 세지 않으면 그 자리를 영영 건너뛰어
+// 라운드가 끝나지 않는다.
+function lastActiveSeatOfRound() {
+  const n = G.players.length;
+  let last = G.currentIndex;
+  for (let k = 0; k < n; k++) {
+    const i = ((G.startIndex || 0) + k) % n;
+    if (!G.players[i].left) last = i;
+  }
+  return last;
+}
+
+// 그 자리를 나감으로 표시한다. 들고 있던 토큰은 은행에 돌려준다 (안 그러면
+// 남은 사람들이 쓸 토큰이 그만큼 사라진다). 예약해 둔 카드는 돌아오지 않는다.
+function markPlayerLeft(seat) {
+  if (!G || !G.players[seat] || G.players[seat].left) return false;
+  const p = G.players[seat];
+  p.left = true;
+  GEMS.concat(['gold']).forEach((c) => {
+    G.bank[c] = (G.bank[c] || 0) + (p.tokens[c] || 0);
+    p.tokens[c] = 0;
+  });
+  log(`${p.name}이(가) 대전에서 나갔습니다. (패배 처리)`);
+
+  if (G.currentIndex === seat) {
+    // 그 사람이 하던 중이었으면 하던 것을 지우고 다음 사람에게 넘긴다
+    G.pending = [];
+    G.discardState = null;
+    G.nobleChoice = null;
+    G.currentIndex = nextActiveSeat(seat);
+  }
+  if (activeSeats().length < 2 && !G.gameOver) endGame(); // 혼자 남으면 더 둘 수 없다
+  return true;
+}
+
+// 내가 빠져도 남은 사람끼리 계속할 수 있는 판인가 (온라인 3인 이상)
+function gameContinuesWithoutMe() {
+  if (!G || G.gameOver) return false;
+  if (!window.NET || NET.mode !== 'online' || NET.seat == null) return false;
+  return activeSeats().filter((seat) => seat !== NET.seat).length >= 2;
+}
+
 function finishTurnFlow(player) {
   checkNoblesAndContinue(player, () => {
-    const lastSeatOfRound = ((G.startIndex || 0) + G.players.length - 1) % G.players.length;
-    const isLastPlayerOfRound = G.currentIndex === lastSeatOfRound;
-    if (isLastPlayerOfRound && G.players.some((p) => p.points >= winPoints())) {
+    const isLastPlayerOfRound = G.currentIndex === lastActiveSeatOfRound();
+    if (isLastPlayerOfRound && G.players.some((p) => !p.left && p.points >= winPoints())) {
       endGame();
       notifyNet();
       return;
     }
-    G.currentIndex = (G.currentIndex + 1) % G.players.length;
+    G.currentIndex = nextActiveSeat(G.currentIndex);
     render();
     notifyNet();
   });
@@ -406,14 +469,17 @@ function notifyNet() {
 
 function endGame() {
   G.gameOver = true;
-  let winner = G.players[0];
-  for (const p of G.players) {
+  // 나간 사람은 순위에서 뺀다. (전원이 나간 일은 없지만 만약을 대비해 남겨둔다)
+  const pool = G.players.filter((p) => !p.left);
+  const contenders = pool.length ? pool : G.players;
+  let winner = contenders[0];
+  for (const p of contenders) {
     if (p.points > winner.points) winner = p;
     else if (p.points === winner.points && p.cards.length < winner.cards.length) winner = p;
   }
-  const tie = G.players.every((p) => p.points === winner.points && p.cards.length === winner.cards.length);
-  if (tie) {
-    G.winnerText = `무승부! ${G.players.length}명 모두 ${winner.points}점입니다.`;
+  const tie = contenders.every((p) => p.points === winner.points && p.cards.length === winner.cards.length);
+  if (tie && contenders.length > 1) {
+    G.winnerText = `무승부! ${contenders.length}명 모두 ${winner.points}점입니다.`;
   } else {
     G.winnerText = `${winner.name} 승리! (${winner.points}점, 개발 카드 ${winner.cards.length}장)`;
   }
@@ -578,8 +644,8 @@ function renderPlayerPanel(p, i) {
   const isMe = window.NET && NET.mode === 'online' ? NET.seat === i : i === HUMAN_SEAT;
   const noblesHtml = p.nobles.map(() => `<span class="noble-mini">★</span>`).join('');
   return `
-    <div class="player-panel ${isCurrent ? 'active' : ''}">
-      <h3>${escapeHtml(p.name)}${netTag} ${isCurrent ? '<span class="turn-tag">현재 턴</span>' : ''}</h3>
+    <div class="player-panel ${isCurrent ? 'active' : ''}${p.left ? ' player-left' : ''}">
+      <h3>${escapeHtml(p.name)}${netTag} ${p.left ? '<span class="left-tag">나감</span>' : isCurrent ? '<span class="turn-tag">현재 턴</span>' : ''}</h3>
       ${isMe ? myRecordLine() : ''}
       <div class="player-points">점수: ${p.points}점 ${noblesHtml}</div>
       <div class="player-row"><span class="row-label">보유 토큰</span><span class="row-items">${tokensHtml || '<em>없음</em>'}</span></div>

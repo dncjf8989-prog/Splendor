@@ -59,6 +59,7 @@ function dbGameRecord() {
   const p = seats
     .sort((a, b) => a.seat - b.seat)
     .map((s) => ({ id: s.id, name: String(s.name).slice(0, 12), r: statsResultOf(s.seat) }));
+  // 도중에 나간 사람도 그 판의 참가자다. statsResultOf가 이미 'l'로 돌려준다.
   if (p.some((x) => !x.r)) return null;
 
   return { at: Date.now(), n: count, p };
@@ -79,7 +80,12 @@ function dbGameRecordAbandoned(leaverId) {
     n: count,
     p: seats
       .sort((a, b) => a.seat - b.seat)
-      .map((s) => ({ id: s.id, name: String(s.name).slice(0, 12), r: s.id === leaverId ? 'l' : 'w' })),
+      // 이번에 나간 사람뿐 아니라, 앞서 이미 나간 사람도 패다.
+      .map((s) => {
+        const seat = G.players[s.seat];
+        const out = s.id === leaverId || (seat && seat.left);
+        return { id: s.id, name: String(s.name).slice(0, 12), r: out ? 'l' : 'w' };
+      }),
   };
 }
 
