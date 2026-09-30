@@ -1068,3 +1068,23 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   font-weight: 700;
   vertical-align: middle;
 }
+
+/* 차례 순서 / 보유 토큰 개수 */
+.order-tag {
+  margin-right: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.order-tag.order-last {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+.token-count { font-variant-numeric: tabular-nums; }
+.token-full { color: var(--gem-red); font-weight: 700; }

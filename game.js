@@ -442,6 +442,19 @@ function gameContinuesWithoutMe() {
   return activeSeats().filter((seat) => seat !== NET.seat).length >= 2;
 }
 
+// 이번 바퀴에서 몇 번째로 두는 자리인가 (1부터). 나간 사람은 세지 않는다.
+function turnOrderOf(seat) {
+  const n = G.players.length;
+  let k = 0;
+  for (let x = 0; x < n; x++) {
+    const i = ((G.startIndex || 0) + x) % n;
+    if (G.players[i].left) continue;
+    k += 1;
+    if (i === seat) return k;
+  }
+  return 0;
+}
+
 function finishTurnFlow(player) {
   checkNoblesAndContinue(player, () => {
     const isLastPlayerOfRound = G.currentIndex === lastActiveSeatOfRound();
@@ -642,13 +655,20 @@ function renderPlayerPanel(p, i) {
     .join('');
   const netTag = window.NET && NET.mode === 'online' && NET.seat === i ? ' <span class="you-tag">나</span>' : '';
   const isMe = window.NET && NET.mode === 'online' ? NET.seat === i : i === HUMAN_SEAT;
+  // 차례 순서. 마지막 사람이 두고 나면 판이 끝날 수 있어 표시해 둔다.
+  const order = turnOrderOf(i);
+  const isLastOfRound = !p.left && i === lastActiveSeatOfRound();
+  const orderTag = p.left
+    ? ''
+    : `<span class="order-tag${isLastOfRound ? ' order-last' : ''}">${order}번째${isLastOfRound ? ' · 마지막' : ''}</span>`;
+  const held = totalTokens(p);
   const noblesHtml = p.nobles.map(() => `<span class="noble-mini">★</span>`).join('');
   return `
     <div class="player-panel ${isCurrent ? 'active' : ''}${p.left ? ' player-left' : ''}">
-      <h3>${escapeHtml(p.name)}${netTag} ${p.left ? '<span class="left-tag">나감</span>' : isCurrent ? '<span class="turn-tag">현재 턴</span>' : ''}</h3>
+      <h3>${escapeHtml(p.name)}${netTag} ${orderTag}${p.left ? '<span class="left-tag">나감</span>' : isCurrent ? '<span class="turn-tag">현재 턴</span>' : ''}</h3>
       ${isMe ? myRecordLine() : ''}
       <div class="player-points">점수: ${p.points}점 ${noblesHtml}</div>
-      <div class="player-row"><span class="row-label">보유 토큰</span><span class="row-items">${tokensHtml || '<em>없음</em>'}</span></div>
+      <div class="player-row"><span class="row-label">보유 토큰 <span class="token-count${held >= 10 ? ' token-full' : ''}">(${held}/10)</span></span><span class="row-items">${tokensHtml || '<em>없음</em>'}</span></div>
       <div class="player-row"><span class="row-label">카드 보너스</span><span class="row-items">${bonusHtml || '<em>없음</em>'}</span></div>
       <div class="player-row"><span class="row-label">예약 카드 (${p.reserved.length}/3)</span></div>
       <div class="reserved-cards">${reservedHtml}</div>
