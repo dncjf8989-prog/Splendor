@@ -575,16 +575,34 @@ function renderPlayerPanel(p, i) {
     })
     .join('');
   const netTag = window.NET && NET.mode === 'online' && NET.seat === i ? ' <span class="you-tag">나</span>' : '';
+  const isMe = window.NET && NET.mode === 'online' ? NET.seat === i : i === HUMAN_SEAT;
   const noblesHtml = p.nobles.map(() => `<span class="noble-mini">★</span>`).join('');
   return `
     <div class="player-panel ${isCurrent ? 'active' : ''}">
       <h3>${escapeHtml(p.name)}${netTag} ${isCurrent ? '<span class="turn-tag">현재 턴</span>' : ''}</h3>
+      ${isMe ? myRecordLine() : ''}
       <div class="player-points">점수: ${p.points}점 ${noblesHtml}</div>
       <div class="player-row"><span class="row-label">보유 토큰</span><span class="row-items">${tokensHtml || '<em>없음</em>'}</span></div>
       <div class="player-row"><span class="row-label">카드 보너스</span><span class="row-items">${bonusHtml || '<em>없음</em>'}</span></div>
       <div class="player-row"><span class="row-label">예약 카드 (${p.reserved.length}/3)</span></div>
       <div class="reserved-cards">${reservedHtml}</div>
     </div>`;
+}
+
+// 내 패널에 붙는 한 줄 전적. 지금 하고 있는 모드·인원 기준이라 이번 판과 바로
+// 견줘볼 수 있다. (stats.js가 아직 안 읽혔거나 기록이 없으면 아무것도 안 붙인다)
+function myRecordLine() {
+  if (typeof statsLoad !== 'function' || !G) return '';
+  const mode = window.NET && NET.mode === 'online' ? 'online' : 'single';
+  const count = String(G.playerCount || G.players.length);
+  const totals = statsLoad().totals || {};
+  const rec = (totals[mode] || {})[count];
+  if (!rec) return '';
+  const total = rec.w + rec.l + rec.d;
+  if (!total) return '';
+  const rate = Math.round((rec.w / total) * 100);
+  const draws = rec.d ? ` ${rec.d}무` : '';
+  return `<div class="player-record">${mode === 'online' ? '온라인' : '싱글'} ${count}인 · ${rec.w}승 ${rec.l}패${draws} · ${rate}%</div>`;
 }
 
 function renderLog() {
