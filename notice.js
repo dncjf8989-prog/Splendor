@@ -2,12 +2,12 @@
 
 // ============ 업데이트 공지 ============
 // 규칙이 바뀌었는데 모르고 들어오면 "왜 갑자기 다르지?" 하게 된다.
-// 처음 접속했을 때 한 번 띄우고, 닫으면 그 판본은 다시 자동으로 뜨지 않는다.
-// 다시 보고 싶으면 헤더의 '공지' 버튼을 누르면 된다.
-// NOTICE_VERSION을 바꾸면 모두에게 다시 한 번 자동으로 뜬다.
+// 들어올 때마다 띄운다. '다시 보지 않기'를 체크하고 닫은 사람에게만 안 띄운다.
+// 체크를 풀고 닫으면 다시 띄운다. 언제든 헤더의 '공지' 버튼으로 열 수 있다.
+// NOTICE_VERSION을 바꾸면 체크해 둔 사람에게도 다시 한 번 뜬다.
 
 const NOTICE_KEY = 'splendorLiteNoticeSeen';
-const NOTICE_VERSION = '2026-10-01';
+const NOTICE_VERSION = '2026-10-01b';
 
 const NOTICE = {
   title: '바뀐 점 안내',
@@ -42,6 +42,13 @@ const NOTICE = {
       ],
     },
     {
+      heading: '이 공지',
+      lines: [
+        '들어올 때마다 뜹니다. 아래 <b>다시 보지 않기</b>를 체크하고 닫으면 그만 뜹니다.',
+        '그만 뜨게 해두었더라도 오른쪽 위 <b>공지</b> 버튼을 누르면 언제든 다시 볼 수 있습니다. 게임 중에 열었다 닫아도 두던 판은 그대로입니다.',
+      ],
+    },
+    {
       heading: '카드',
       lines: ['티어1·2·3 모두 <b>시중 스플렌더 카드와 같은 구성</b>입니다. (40 / 30 / 20장)'],
     },
@@ -64,9 +71,22 @@ function noticeMarkSeen() {
   }
 }
 
-// 아직 안 본 공지가 있는가. game.js가 첫 판을 시작할지 정할 때 쓴다.
+// 체크를 풀고 닫으면 다시 띄워야 한다.
+function noticeClearSeen() {
+  try {
+    localStorage.removeItem(NOTICE_KEY);
+  } catch (e) {
+    /* 위와 같다 */
+  }
+}
+
+// 이번 접속에서 공지를 이미 닫았는가. 체크를 안 하고 닫은 사람에게는
+// 다음 접속에 또 띄워야 하지만, 지금 이 화면까지 가리고 있으면 안 된다.
+let noticeDone = false;
+
+// 지금 화면을 가리고 띄워야 할 공지가 있는가. 시작 화면을 띄울지 정할 때 쓴다.
 function noticePending() {
-  return noticeSeen() !== NOTICE_VERSION;
+  return !noticeDone && noticeSeen() !== NOTICE_VERSION;
 }
 
 function noticeHtml() {
@@ -84,6 +104,7 @@ function noticeHtml() {
     </div>
     ${body}
     <div class="notice-foot">
+      <label id="noticeSkip"><input type="checkbox" id="noticeSkipBox"${noticeSeen() === NOTICE_VERSION ? ' checked' : ''}> 다시 보지 않기</label>
       <button id="noticeCloseBtn" type="button">확인했습니다</button>
     </div>`;
 }
@@ -99,7 +120,11 @@ function toggleNotice(show) {
 }
 
 function closeNotice() {
-  noticeMarkSeen();
+  // 체크했으면 그만 띄우고, 안 했으면 다음에 또 띄운다.
+  const box = document.getElementById('noticeSkipBox');
+  if (box && box.checked) noticeMarkSeen();
+  else noticeClearSeen();
+  noticeDone = true;
   toggleNotice(false);
   // 공지를 닫으면 시작 화면이 뜬다. 판은 싱글/온라인을 고를 때 시작된다.
   if (typeof updateModeTabs === 'function') updateModeTabs();
@@ -118,5 +143,5 @@ document.addEventListener('DOMContentLoaded', () => {
   const btn = document.getElementById('noticeBtn');
   if (btn) btn.addEventListener('click', () => toggleNotice(true));
 
-  if (noticeSeen() !== NOTICE_VERSION) toggleNotice(true);
+  if (noticePending()) toggleNotice(true);
 });
