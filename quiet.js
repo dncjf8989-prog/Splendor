@@ -37,9 +37,8 @@ function quietApply(on) {
   if (QUIET_ON) root.setAttribute('data-quiet', '1');
   else root.removeAttribute('data-quiet');
 
-  // 제목이 가장 멀리서도 읽힌다. 켜면 같이 바꾼다.
-  const title = document.getElementById('appTitle');
-  if (title) title.textContent = QUIET_ON ? QUIET_TITLE : GAME_TITLE;
+  // 브라우저 탭 제목만 바꾼다. 탭 목록에 게임 이름이 뜨는 게 제일 눈에 띈다.
+  // 화면 안쪽 제목은 건드리지 않는다. 어차피 가까이서 보는 사람만 읽는다.
   document.title = QUIET_ON ? QUIET_TITLE : GAME_TITLE;
 
   const btn = document.getElementById('quietBtn');
@@ -55,7 +54,7 @@ function quietToggle() {
   quietSave(QUIET_ON);
 }
 
-// 이 파일은 markup 뒤에서 읽히므로 버튼과 제목이 이미 있다. 바로 적용해서
+// 이 파일은 markup 뒤에서 읽히므로 버튼이 이미 있다. 바로 적용해서
 // 켜둔 사람에게 평소 색이 한 번 번쩍이지 않게 한다.
 quietApply(quietLoad());
 (function quietBind() {
