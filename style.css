@@ -619,7 +619,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ============ 전적 패널 ============ */
 .header-actions { display: flex; gap: 8px; align-items: center; }
-#statsBtn, #noticeBtn { padding: 8px 14px; font-weight: 600; }
+#statsBtn, #noticeBtn, #quietBtn { padding: 8px 14px; font-weight: 600; }
 
 #statsOverlay {
   position: fixed;
@@ -1195,3 +1195,145 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   .start-actions { flex-direction: column; }
   .start-actions button { min-width: 0; width: 100%; }
 }
+
+/* ============ 저채도 모드 ============
+   사무실에서 멀리서 보면 눈에 띄는 건 넓은 색면과 둥근 모서리다. 그 둘을
+   걷어내고 표처럼 보이게 한다. 보석 색은 이 게임의 정보라 지우지 않고
+   톤만 낮춘다. 이 블록은 파일 맨 끝에 있어야 다크 테마를 덮어쓴다. */
+:root[data-quiet] {
+  /* 보석: 색상 차이는 남기고 채도만 낮춘다 */
+  --gem-white: #d8d3c5; --gem-white-fg: #44403a;
+  --gem-blue: #4f6880;
+  --gem-green: #5a7a5e;
+  --gem-red: #8e675f;
+  --gem-black: #4b4843;
+  --gem-gold: #8d7b57;
+  --gem-white-edge: #c9c3b1;
+  --gem-black-edge: #6a675f;
+
+  /* 카드 바탕에 입히던 색은 모두 없앤다 */
+  --card-tint-white: #ffffff; --card-tint-blue: #ffffff;
+  --card-tint-green: #ffffff; --card-tint-red: #ffffff;
+  --card-tint-black: #ffffff;
+  --card-bg: #ffffff;
+  --card-empty-a: #f3f3f3; --card-empty-b: #ebebeb;
+  --noble-bg: #f7f7f5;
+
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --border: #d4d4d4;
+  --text: #333333;
+  --muted: #8a8a8a;
+  --accent: #6c6c6c;
+  --accent-fg: #ffffff;
+  --modal-bg: #ffffff;
+  --modal-shadow: rgba(0, 0, 0, 0.12);
+  --overlay: rgba(60, 60, 60, 0.35);
+  --win-bg: #f6f6f4;
+  --chip-border: #d4d4d4;
+  --swatch-border: rgba(0, 0, 0, 0.14);
+  --active-ring: rgba(0, 0, 0, 0.05);
+}
+
+/* 글꼴과 모서리: 표 문서처럼 */
+:root[data-quiet] body {
+  font-family: "Malgun Gothic", "맑은 고딕", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+}
+:root[data-quiet] #header h1 {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #444;
+  letter-spacing: 0;
+}
+:root[data-quiet] .badge { display: none; }
+
+/* 둥근 모서리와 그림자를 걷어낸다. 멀리서 "앱"으로 보이게 하는 게 이것들이다. */
+:root[data-quiet] button,
+:root[data-quiet] .card-tile,
+:root[data-quiet] .noble-tile,
+:root[data-quiet] .bank-chip,
+:root[data-quiet] #board,
+:root[data-quiet] #bank,
+:root[data-quiet] #controls,
+:root[data-quiet] #log,
+:root[data-quiet] #chatPanel,
+:root[data-quiet] .player-panel,
+:root[data-quiet] .net-box,
+:root[data-quiet] .banner,
+:root[data-quiet] #modal,
+:root[data-quiet] #statsBox,
+:root[data-quiet] #noticeBox,
+:root[data-quiet] #startPanel,
+:root[data-quiet] .mode-tab,
+:root[data-quiet] .count-tab,
+:root[data-quiet] #chatInput,
+:root[data-quiet] #joinCodeInput,
+:root[data-quiet] #nickInput {
+  border-radius: 2px;
+}
+:root[data-quiet] .card-tile,
+:root[data-quiet] #modal,
+:root[data-quiet] #statsBox,
+:root[data-quiet] #noticeBox {
+  box-shadow: none;
+}
+:root[data-quiet] #noticeBox,
+:root[data-quiet] #statsBox,
+:root[data-quiet] #modal { border: 1px solid #b8b8b8; }
+
+/* 카드: 색 테두리를 걷고 모두 같은 회색 칸으로. 보석은 오른쪽 위 네모로만 남긴다. */
+:root[data-quiet] .card-tile { border-width: 1px; border-color: var(--border) !important; }
+:root[data-quiet] .card-tile.affordable { box-shadow: inset 0 0 0 2px #9a9a9a; }
+:root[data-quiet] .card-gem {
+  border-radius: 2px;
+  border-width: 1px;
+  border-color: var(--swatch-border);
+  box-shadow: none;
+}
+:root[data-quiet] .cost-icon,
+:root[data-quiet] .gemdot { border-radius: 2px; }
+
+/* 귀족: 금테 네모를 평범한 칸으로 */
+:root[data-quiet] .noble-tile { border-width: 1px; border-color: var(--border); }
+:root[data-quiet] .noble-mini { color: var(--muted); }
+
+/* 은행: 화면에서 가장 큰 색덩어리다. 바탕을 비우고 색은 윗선으로만 남긴다. */
+:root[data-quiet] .bank-row { gap: 0; }
+:root[data-quiet] .bank-chip {
+  background: var(--panel) !important;
+  color: var(--text) !important;
+  border-radius: 0;
+  margin-right: -1px;
+  min-width: 72px;
+}
+:root[data-quiet] .bank-chip.gem-white { box-shadow: inset 0 3px 0 var(--gem-white-edge); }
+:root[data-quiet] .bank-chip.gem-blue { box-shadow: inset 0 3px 0 var(--gem-blue); }
+:root[data-quiet] .bank-chip.gem-green { box-shadow: inset 0 3px 0 var(--gem-green); }
+:root[data-quiet] .bank-chip.gem-red { box-shadow: inset 0 3px 0 var(--gem-red); }
+:root[data-quiet] .bank-chip.gem-black { box-shadow: inset 0 3px 0 var(--gem-black); }
+:root[data-quiet] .bank-chip.gem-gold { box-shadow: inset 0 3px 0 var(--gem-gold); }
+
+/* 탭·버튼: 알약 모양을 없애 리본 메뉴처럼 */
+:root[data-quiet] .mode-tab { border-radius: 2px; font-weight: 500; }
+:root[data-quiet] .mode-tab.active,
+:root[data-quiet] .count-tab.active { background: #e8e8e6; color: var(--text); border-color: #b8b8b8; }
+:root[data-quiet] #newGameBtn { background: #f3f3f1; color: var(--text); border: 1px solid var(--border); font-weight: 600; }
+:root[data-quiet] .turn-tag,
+:root[data-quiet] .you-tag,
+:root[data-quiet] .result-tag,
+:root[data-quiet] .room-code { border-radius: 2px; }
+
+/* 승패 색도 한 톤 내린다 */
+:root[data-quiet] .stats-w { color: #5a7a5e; }
+:root[data-quiet] .stats-l { color: #8e675f; }
+
+/* 칸을 붙여 표처럼 만든다. 떨어져 있는 네모는 멀리서도 "타일"로 보인다. */
+:root[data-quiet] .tier-cards { gap: 0; }
+:root[data-quiet] .tier-cards .card-tile { margin: 0 -1px -1px 0; }
+:root[data-quiet] #nobles { gap: 0; }
+:root[data-quiet] .noble-tile { margin-right: -1px; }
+:root[data-quiet] .tier { margin-bottom: 14px; }
+:root[data-quiet] .tier-label { font-size: 11px; }
+:root[data-quiet] #board { padding: 12px 10px; }
