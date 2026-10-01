@@ -2,8 +2,9 @@
 
 // ============ 업데이트 공지 ============
 // 규칙이 바뀌었는데 모르고 들어오면 "왜 갑자기 다르지?" 하게 된다.
-// 처음 접속했을 때 한 번 띄우고, 닫으면 그 판본은 다시 띄우지 않는다.
-// NOTICE_VERSION을 바꾸면 모두에게 다시 한 번 뜬다.
+// 처음 접속했을 때 한 번 띄우고, 닫으면 그 판본은 다시 자동으로 뜨지 않는다.
+// 다시 보고 싶으면 헤더의 '공지' 버튼을 누르면 된다.
+// NOTICE_VERSION을 바꾸면 모두에게 다시 한 번 자동으로 뜬다.
 
 const NOTICE_KEY = 'splendorLiteNoticeSeen';
 const NOTICE_VERSION = '2026-10-01';
@@ -112,6 +113,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === overlay) closeNotice(); // 바깥을 눌러도 닫힌다
     if (e.target && e.target.id === 'noticeCloseBtn') closeNotice();
   });
+
+  // 헤더의 '공지' 버튼으로 언제든 다시 볼 수 있다.
+  const btn = document.getElementById('noticeBtn');
+  if (btn) btn.addEventListener('click', () => toggleNotice(true));
 
   if (noticeSeen() !== NOTICE_VERSION) toggleNotice(true);
 });

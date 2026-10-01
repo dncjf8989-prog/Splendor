@@ -619,7 +619,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ============ 전적 패널 ============ */
 .header-actions { display: flex; gap: 8px; align-items: center; }
-#statsBtn { padding: 8px 14px; font-weight: 600; }
+#statsBtn, #noticeBtn { padding: 8px 14px; font-weight: 600; }
 
 #statsOverlay {
   position: fixed;
