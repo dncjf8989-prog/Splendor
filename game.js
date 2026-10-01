@@ -38,8 +38,8 @@ function escapeHtml(str) {
 // 앉아 있는 시간이 길어지기 때문이다. (2인 64차례 / 3인 89차례 / 4인 110차례)
 const RULES = {
   2: { tokens: 4, gold: 5, nobles: 3, winPoints: 21 },
-  3: { tokens: 5, gold: 5, nobles: 4, winPoints: 19 },
-  4: { tokens: 7, gold: 5, nobles: 5, winPoints: 16 },
+  3: { tokens: 5, gold: 5, nobles: 4, winPoints: 17 },
+  4: { tokens: 7, gold: 5, nobles: 5, winPoints: 15 },
 };
 const DEFAULT_PLAYER_COUNT = 2;
 const HUMAN_SEAT = 0; // 싱글 플레이에서 사람이 앉는 자리
