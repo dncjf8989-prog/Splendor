@@ -63,6 +63,11 @@ function noticeMarkSeen() {
   }
 }
 
+// 아직 안 본 공지가 있는가. game.js가 첫 판을 시작할지 정할 때 쓴다.
+function noticePending() {
+  return noticeSeen() !== NOTICE_VERSION;
+}
+
 function noticeHtml() {
   const body = NOTICE.groups
     .map(
@@ -95,6 +100,9 @@ function toggleNotice(show) {
 function closeNotice() {
   noticeMarkSeen();
   toggleNotice(false);
+  // 공지를 먼저 보여주느라 미뤄둔 첫 판을 이제 시작한다
+  if (!G && typeof newGame === 'function') newGame();
+  if (typeof updateModeTabs === 'function') updateModeTabs(); // 게임판을 다시 띄운다
 }
 
 document.addEventListener('DOMContentLoaded', () => {

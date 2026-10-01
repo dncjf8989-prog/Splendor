@@ -883,5 +883,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // 처음 들어온 사람에게는 게임판 대신 공지부터 보여준다.
+  // (notice.js가 game.js보다 뒤에 읽히지만, DOMContentLoaded가 올 때쯤이면
+  //  이미 실행이 끝나 있어 noticePending을 쓸 수 있다)
+  if (typeof noticePending === 'function' && noticePending()) {
+    const area = document.getElementById('gameArea');
+    if (area) area.hidden = true;
+    return; // 공지를 닫을 때 notice.js가 첫 판을 시작한다
+  }
   newGame();
 });

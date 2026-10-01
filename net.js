@@ -775,19 +775,21 @@ function updateModeTabs() {
   const netPanel = document.getElementById('netPanel');
   const bottomRow = document.getElementById('bottomRow');
   const log = document.getElementById('log');
+  // 아직 안 본 공지가 있으면 그것부터 보여준다. 게임판은 공지를 닫은 뒤에 뜬다.
+  const waitNotice = typeof noticePending === 'function' && noticePending();
   if (NET.mode === 'single') {
-    gameArea.hidden = false;
+    gameArea.hidden = waitNotice;
     netPanel.hidden = true;
-    if (bottomRow) bottomRow.hidden = false;
-    if (log) log.hidden = false;
+    if (bottomRow) bottomRow.hidden = waitNotice;
+    if (log) log.hidden = waitNotice;
   } else {
     netPanel.hidden = false;
     const inGame = NET.status === 'active';
-    gameArea.hidden = !inGame;
+    gameArea.hidden = waitNotice || !inGame;
     // 대기방에서도 채팅은 써야 하므로 아래 줄은 로비부터 띄운다.
-    if (bottomRow) bottomRow.hidden = !(inGame || NET.status === 'waiting');
+    if (bottomRow) bottomRow.hidden = waitNotice || !(inGame || NET.status === 'waiting');
     // 진행 기록은 판이 있을 때만 의미가 있다.
-    if (log) log.hidden = !inGame;
+    if (log) log.hidden = waitNotice || !inGame;
   }
   updateCountPicker();
   updateNewGameButton();
