@@ -100,9 +100,8 @@ function toggleNotice(show) {
 function closeNotice() {
   noticeMarkSeen();
   toggleNotice(false);
-  // 공지를 먼저 보여주느라 미뤄둔 첫 판을 이제 시작한다
-  if (!G && typeof newGame === 'function') newGame();
-  if (typeof updateModeTabs === 'function') updateModeTabs(); // 게임판을 다시 띄운다
+  // 공지를 닫으면 시작 화면이 뜬다. 판은 싱글/온라인을 고를 때 시작된다.
+  if (typeof updateModeTabs === 'function') updateModeTabs();
 }
 
 document.addEventListener('DOMContentLoaded', () => {

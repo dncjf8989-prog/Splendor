@@ -1137,3 +1137,36 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 .notice-foot { margin-top: 18px; text-align: right; }
 #noticeCloseBtn { font-size: 14px; padding: 9px 20px; font-weight: 700; }
+
+/* ============ 시작 화면 ============ */
+#startPanel[hidden] { display: none; }
+.start-box {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 28px 22px 22px;
+  text-align: center;
+}
+.start-box h2 { margin: 0 0 18px; font-size: 17px; }
+.start-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.start-actions button {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: center;
+  min-width: 210px;
+  padding: 18px 22px;
+  border-radius: 10px;
+}
+.start-actions button strong { font-size: 15px; }
+.start-actions button span { font-size: 11px; color: var(--muted); font-weight: 400; }
+.start-hint { margin: 16px 0 0; font-size: 11px; color: var(--muted); }
+@media (max-width: 480px) {
+  .start-actions { flex-direction: column; }
+  .start-actions button { min-width: 0; width: 100%; }
+}

@@ -764,6 +764,26 @@ function netApplyMode(mode) {
   updateModeTabs();
 }
 
+// ============ 시작 화면 ============
+// 들어오자마자 싱글 판이 돌아가 있으면 "뭘 하려던 거였지" 싶어진다.
+// 싱글/온라인을 고르기 전에는 아무것도 시작하지 않는다.
+const APP = { started: false };
+window.APP = APP;
+
+function appStart(mode) {
+  APP.started = true;
+  netApplyMode(mode === 'online' ? 'online' : 'single');
+}
+
+// 위쪽 탭을 눌러도 시작된다. (아직 안 골랐으면 그게 곧 선택이다)
+function appPickMode(mode) {
+  if (!APP.started) {
+    appStart(mode);
+    return;
+  }
+  netSwitchMode(mode);
+}
+
 // ============ 렌더링 ============
 function updateModeTabs() {
   const singleBtn = document.getElementById('modeSingleBtn');
@@ -775,21 +795,32 @@ function updateModeTabs() {
   const netPanel = document.getElementById('netPanel');
   const bottomRow = document.getElementById('bottomRow');
   const log = document.getElementById('log');
-  // 아직 안 본 공지가 있으면 그것부터 보여준다. 게임판은 공지를 닫은 뒤에 뜬다.
+  const startPanel = document.getElementById('startPanel');
+  // 아직 안 본 공지가 있으면 그것부터. 공지를 닫으면 시작 화면이 뜬다.
   const waitNotice = typeof noticePending === 'function' && noticePending();
-  if (NET.mode === 'single') {
-    gameArea.hidden = waitNotice;
+  if (waitNotice || !APP.started) {
+    if (startPanel) startPanel.hidden = waitNotice; // 공지 중에는 시작 화면도 가린다
+    gameArea.hidden = true;
     netPanel.hidden = true;
-    if (bottomRow) bottomRow.hidden = waitNotice;
-    if (log) log.hidden = waitNotice;
+    if (bottomRow) bottomRow.hidden = true;
+    if (log) log.hidden = true;
+    return;
+  }
+  if (startPanel) startPanel.hidden = true;
+
+  if (NET.mode === 'single') {
+    gameArea.hidden = false;
+    netPanel.hidden = true;
+    if (bottomRow) bottomRow.hidden = false;
+    if (log) log.hidden = false;
   } else {
     netPanel.hidden = false;
     const inGame = NET.status === 'active';
-    gameArea.hidden = waitNotice || !inGame;
+    gameArea.hidden = !inGame;
     // 대기방에서도 채팅은 써야 하므로 아래 줄은 로비부터 띄운다.
-    if (bottomRow) bottomRow.hidden = waitNotice || !(inGame || NET.status === 'waiting');
+    if (bottomRow) bottomRow.hidden = !(inGame || NET.status === 'waiting');
     // 진행 기록은 판이 있을 때만 의미가 있다.
-    if (log) log.hidden = waitNotice || !inGame;
+    if (log) log.hidden = !inGame;
   }
   updateCountPicker();
   updateNewGameButton();
@@ -928,13 +959,22 @@ function renderNetPanelBody() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('modeSingleBtn').addEventListener('click', () => netSwitchMode('single'));
-  document.getElementById('modeOnlineBtn').addEventListener('click', () => netSwitchMode('online'));
+  document.getElementById('modeSingleBtn').addEventListener('click', () => appPickMode('single'));
+  document.getElementById('modeOnlineBtn').addEventListener('click', () => appPickMode('online'));
+
+  document.getElementById('startPanel').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-start]');
+    if (btn) appStart(btn.dataset.start);
+  });
 
   document.getElementById('countPicker').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-count]');
     if (!btn || btn.disabled) return;
     selectedPlayerCount = Number(btn.dataset.count);
+    if (!APP.started) {
+      updateModeTabs(); // 아직 안 골랐으면 인원만 바꾸고 판은 만들지 않는다
+      return;
+    }
     if (NET.mode === 'online') {
       NET.roomSize = selectedPlayerCount;
       renderNetPanel();

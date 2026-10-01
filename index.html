@@ -6,7 +6,7 @@
 <title>스플렌더 라이트</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20261001b">
+<link rel="stylesheet" href="style.css?v=20261001c">
 </head>
 <body>
 <div id="app">
@@ -30,6 +30,23 @@
   </nav>
 
   <section id="netPanel" hidden></section>
+
+  <section id="startPanel" hidden>
+    <div class="start-box">
+      <h2>어떻게 하시겠어요?</h2>
+      <div class="start-actions">
+        <button type="button" data-start="single">
+          <strong>싱글 플레이</strong>
+          <span>AI를 상대로 혼자 둡니다</span>
+        </button>
+        <button type="button" data-start="online">
+          <strong>온라인 대전</strong>
+          <span>방을 만들거나 방 코드로 참가합니다</span>
+        </button>
+      </div>
+      <p class="start-hint">인원은 위의 <b>인원</b>에서 먼저 고르세요.</p>
+    </div>
+  </section>
 
   <div id="gameArea">
     <div id="banner"></div>
@@ -103,15 +120,15 @@
     document.write('<script src="https://unpkg.com/mqtt@5/dist/mqtt.min.js"><\/script>');
   }
 </script>
-<script src="cards.js?v=20261001b"></script>
-<script src="game.js?v=20261001b"></script>
-<script src="ai.js?v=20261001b"></script>
-<script src="stats.js?v=20261001b"></script>
-<script src="chat.js?v=20261001b"></script>
-<script src="notice.js?v=20261001b"></script>
-<script src="relay.js?v=20261001b"></script>
-<script src="db.js?v=20261001b"></script>
-<script src="board.js?v=20261001b"></script>
-<script src="net.js?v=20261001b"></script>
+<script src="cards.js?v=20261001c"></script>
+<script src="game.js?v=20261001c"></script>
+<script src="ai.js?v=20261001c"></script>
+<script src="stats.js?v=20261001c"></script>
+<script src="chat.js?v=20261001c"></script>
+<script src="notice.js?v=20261001c"></script>
+<script src="relay.js?v=20261001c"></script>
+<script src="db.js?v=20261001c"></script>
+<script src="board.js?v=20261001c"></script>
+<script src="net.js?v=20261001c"></script>
 </body>
 </html>
