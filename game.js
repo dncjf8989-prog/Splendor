@@ -670,7 +670,7 @@ function renderPlayerPanel(p, i) {
   return `
     <div class="player-panel ${isCurrent ? 'active' : ''}${p.left ? ' player-left' : ''}">
       <h3>${escapeHtml(p.name)}${netTag} ${orderTag}${p.left ? '<span class="left-tag">나감</span>' : isCurrent ? '<span class="turn-tag">현재 턴</span>' : ''}</h3>
-      ${isMe ? myRecordLine() : ''}
+      ${seatRecordLine(i)}
       <div class="player-points">점수: ${p.points}점 ${noblesHtml}</div>
       <div class="player-row"><span class="row-label">보유 토큰 <span class="token-count${held >= 10 ? ' token-full' : ''}">(${held}/10)</span></span><span class="row-items">${tokensHtml || '<em>없음</em>'}</span></div>
       <div class="player-row"><span class="row-label">카드 보너스</span><span class="row-items">${bonusHtml || '<em>없음</em>'}</span></div>
@@ -679,20 +679,53 @@ function renderPlayerPanel(p, i) {
     </div>`;
 }
 
-// 내 패널에 붙는 한 줄 전적. 지금 하고 있는 모드·인원 기준이라 이번 판과 바로
-// 견줘볼 수 있다. (stats.js가 아직 안 읽혔거나 기록이 없으면 아무것도 안 붙인다)
-function myRecordLine() {
-  if (typeof statsLoad !== 'function' || !G) return '';
-  const mode = window.NET && NET.mode === 'online' ? 'online' : 'single';
-  const count = String(G.playerCount || G.players.length);
-  const totals = statsLoad().totals || {};
-  const rec = (totals[mode] || {})[count];
+// 패널에 붙는 한 줄 전적. 지금 하고 있는 모드·인원 기준이라 이번 판과 바로
+// 견줘볼 수 있다. 기록이 없으면 아무것도 안 붙인다.
+function recordLineHtml(label, count, rec) {
   if (!rec) return '';
   const total = rec.w + rec.l + rec.d;
   if (!total) return '';
   const rate = Math.round((rec.w / total) * 100);
   const draws = rec.d ? ` ${rec.d}무` : '';
-  return `<div class="player-record">${mode === 'online' ? '온라인' : '싱글'} ${count}인 · ${rec.w}승 ${rec.l}패${draws} · ${rate}%</div>`;
+  return `<div class="player-record">${label} ${count}인 · ${rec.w}승 ${rec.l}패${draws} · ${rate}%</div>`;
+}
+
+// 내 브라우저에 쌓인 기록 (싱글, 그리고 전체 기록을 못 불러왔을 때의 대비책)
+function localRecordOf(mode, count) {
+  if (typeof statsLoad !== 'function') return null;
+  const totals = statsLoad().totals || {};
+  return (totals[mode] || {})[count] || null;
+}
+
+// 온라인에서는 상대 전적도 보여준다. 숫자는 모두가 같은 판 기록(board)에서
+// 같은 방법으로 세므로, 내 화면과 상대 화면에 다른 값이 뜰 수 없다.
+function boardRecordOf(seat, count) {
+  if (typeof BOARD === 'undefined' || !BOARD || !Array.isArray(BOARD.players) || !BOARD.players.length) return null;
+  const id = typeof netIdOfSeat === 'function' ? netIdOfSeat(seat) : null;
+  if (!id) return null;
+  const row = BOARD.players.find((x) => x && x.id === id);
+  return row && row.online ? row.online[count] || null : null;
+}
+
+function seatRecordLine(seat) {
+  if (!G) return '';
+  const count = String(G.playerCount || G.players.length);
+  const online = !!(window.NET && NET.mode === 'online');
+  if (!online) {
+    // 싱글에서는 AI 전적이라는 게 없다. 내 줄만 붙인다.
+    if (seat !== HUMAN_SEAT) return '';
+    return recordLineHtml('싱글', count, localRecordOf('single', count));
+  }
+  const shared = boardRecordOf(seat, count);
+  if (shared) return recordLineHtml('온라인', count, shared);
+  // 전체 기록을 아직 못 불러왔으면 적어도 내 것은 보여준다.
+  if (window.NET && NET.seat === seat) return recordLineHtml('온라인', count, localRecordOf('online', count));
+  return '';
+}
+
+// 예전 이름. 다른 곳에서 부르던 것을 그대로 받아준다.
+function myRecordLine() {
+  return seatRecordLine(window.NET && NET.mode === 'online' ? NET.seat : HUMAN_SEAT);
 }
 
 function renderLog() {

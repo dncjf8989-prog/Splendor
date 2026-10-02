@@ -140,28 +140,43 @@ function boardSaveGame(rec) {
   return dbSaveGame(rec);
 }
 
+// 전적 창뿐 아니라 자리별 전적도 이 값을 쓰므로, 받아오면 판도 다시 그린다.
+function boardRerender() {
+  if (typeof renderStatsPanel === 'function') renderStatsPanel();
+  if (typeof render === 'function' && typeof G !== 'undefined' && G) render();
+}
+
+// 대전이 시작될 때처럼 "지금 값이 필요한" 순간에 부른다. 이미 받는 중이면
+// 겹쳐 부르지 않는다. maxAgeMs를 주면 그만큼 된 값은 그대로 쓴다.
+function boardEnsureFresh(maxAgeMs) {
+  if (BOARD.status === 'loading') return;
+  const age = Number.isFinite(maxAgeMs) ? maxAgeMs : 0;
+  if (BOARD.status === 'ok' && age > 0 && Date.now() - BOARD.at < age) return;
+  boardRefresh();
+}
+
 function boardRefresh() {
   if (BOARD.status === 'loading') return Promise.resolve();
   if (typeof dbLoadGames !== 'function' || !dbAvailable()) {
     BOARD.status = 'error';
     BOARD.msg = '이 브라우저에서는 랭킹을 불러올 수 없습니다.';
-    renderStatsPanel();
+    boardRerender();
     return Promise.resolve();
   }
   BOARD.status = 'loading';
   BOARD.msg = '';
-  renderStatsPanel();
+  if (typeof renderStatsPanel === 'function') renderStatsPanel();
   return dbLoadGames()
     .then((games) => {
       BOARD.players = dbTally(games);
       BOARD.games = games.length;
       BOARD.status = 'ok';
       BOARD.at = Date.now();
-      renderStatsPanel();
+      boardRerender();
     })
     .catch(() => {
       BOARD.status = 'error';
       BOARD.msg = '랭킹 서버에 연결하지 못했습니다. 잠시 뒤 다시 시도해 주세요.';
-      renderStatsPanel();
+      boardRerender();
     });
 }

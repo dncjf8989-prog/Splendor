@@ -257,6 +257,15 @@ function netProfileList() {
   return list;
 }
 
+// 자리에 앉은 사람의 기기 ID. 자리별 전적을 찾을 때 쓴다.
+// 관전자는 NET.seat이 없으므로 모든 자리를 상대 목록에서 찾는다.
+function netIdOfSeat(seat) {
+  if (!window.NET || NET.mode !== 'online' || seat == null) return null;
+  if (NET.seat === seat) return typeof statsProfile === 'function' ? statsProfile().id : null;
+  const o = (NET.opponents || []).find((x) => x && x.seat === seat);
+  return o && o.id ? o.id : null;
+}
+
 function netSetOpponentsFrom(profiles) {
   NET.opponents = (profiles || [])
     .filter((p) => p && p.seat !== NET.seat)
@@ -493,6 +502,7 @@ function netHostStartGame() {
   NET.watchers.forEach((w) => {
     netSendTo(w.conn, { type: 'init', seat: null, state: netSerializeState(), profiles, spectator: true });
   });
+  if (typeof boardEnsureFresh === 'function') boardEnsureFresh(); // 자리별 전적을 띄우려면 받아둬야 한다
   renderNetPanel();
 }
 
@@ -663,6 +673,7 @@ function netGuestHandle(msg) {
     chatSystem(NET.spectator ? '관전을 시작합니다.' : '대전이 시작되었습니다.');
     netSetOpponentsFrom(msg.profiles);
     netApplyRemoteState(msg.state);
+    if (typeof boardEnsureFresh === 'function') boardEnsureFresh();
     renderNetPanel();
     return;
   }
