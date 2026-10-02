@@ -183,6 +183,8 @@ function maybeRecordResult() {
 function statsRecordAbandoned(result, leaverId) {
   if (!G || !G.gameId || G.gameOver) return false;
   if (!window.NET || NET.mode !== 'online') return false;
+  // 관전자는 둔 것이 없으므로 이겼다 졌다 할 것도 없다.
+  if (typeof netIsSpectator === 'function' && netIsSpectator()) return false;
 
   const s = statsLoad();
   if (STATS.lastRecordedGameId === G.gameId || s.lastRecordedGameId === G.gameId) return false;

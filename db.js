@@ -45,6 +45,8 @@ function dbRequest(path, options) {
 function dbGameRecord() {
   if (!G || !G.gameId) return null;
   if (!window.NET || NET.mode !== 'online') return null;
+  // 관전자는 참가자가 아니다. 판 기록은 둔 사람들이 올린다.
+  if (typeof netIsSpectator === 'function' && netIsSpectator()) return null;
 
   const count = G.playerCount || G.players.length;
   const seats = [];
@@ -68,6 +70,7 @@ function dbGameRecord() {
 // 중도에 끝난 판. 나간 사람은 패, 남은 사람은 승으로 적는다.
 function dbGameRecordAbandoned(leaverId) {
   if (!G || !G.gameId || !window.NET || NET.mode !== 'online') return null;
+  if (typeof netIsSpectator === 'function' && netIsSpectator()) return null;
   const count = G.playerCount || G.players.length;
   const seats = [];
   if (NET.seat != null) seats.push({ id: statsProfile().id, name: statsMyDisplayName(), seat: NET.seat });

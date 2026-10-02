@@ -25,6 +25,15 @@ const NET = {
   timer: null, // 연결 대기 시간 제한
   peerOpened: false, // 중계 서버까지는 닿았는지 (실패 원인 구분용)
   hidingGameId: null, // 창을 닫으며 패배 처리한 판 (중복 처리 방지)
+
+  // ---- 관전 ----
+  // 관전자는 자리를 받지 않는다. 정원에 들어가지 않고, 둘 수도 없고,
+  // 전적에도 남지 않는다. 방장이 돌리는 상태와 채팅만 그대로 받아 본다.
+  spectator: false, // 내가 관전자인가
+  watchers: [], // 방장: 관전자 연결 목록 { conn, profile }
+  pending: [], // 방장: 아직 hello를 안 보내 자리/관전이 안 정해진 연결
+  watcherCount: 0, // 화면에 보여줄 관전자 수 (게스트는 방장이 알려준 값)
+  lastCode: '', // 마지막으로 시도한 방 코드 (정원이 찼을 때 관전으로 다시 들어가려고)
 };
 // game.js는 window.NET으로 존재 여부를 확인하므로 전역 객체에 명시적으로 노출한다.
 // (top-level const는 window의 프로퍼티가 되지 않는다.)
@@ -161,6 +170,11 @@ async function netRunDiagnostics() {
   renderNetPanel();
 }
 
+// 관전자는 전적·판 기록에 아무것도 남기지 않는다. stats.js와 db.js가 이걸 본다.
+function netIsSpectator() {
+  return !!(window.NET && NET.mode === 'online' && NET.spectator);
+}
+
 function netAvailable() {
   return typeof RelayPeer !== 'undefined' && relayAvailable();
 }
@@ -265,6 +279,10 @@ function netBroadcast(msg, except) {
   NET.links.forEach((link) => {
     if (link.conn !== except) netSendTo(link.conn, msg);
   });
+  // 관전자도 같은 화면을 봐야 하므로 상태·채팅·로비를 똑같이 받는다.
+  NET.watchers.forEach((w) => {
+    if (w.conn !== except) netSendTo(w.conn, msg);
+  });
 }
 
 function netSendToHost(msg) {
@@ -314,6 +332,10 @@ function netCreateRoom() {
   NET.seat = 0;
   NET.links = [];
   NET.opponents = [];
+  NET.spectator = false;
+  NET.watchers = [];
+  NET.pending = [];
+  NET.watcherCount = 0;
 
   const peer = new RelayPeer(PEER_ID_PREFIX + code);
   NET.peer = peer;
@@ -338,22 +360,8 @@ function netCreateRoom() {
 
   peer.on('connection', (conn) => {
     conn.on('open', () => {
-      // 이미 시작했거나 정원이 찼으면 받지 않는다.
-      if (NET.status === 'active' || NET.links.length >= NET.roomSize - 1) {
-        netSendTo(conn, { type: 'full' });
-        setTimeout(() => {
-          try {
-            conn.close();
-          } catch (e) {
-            /* noop */
-          }
-        }, 200);
-        return;
-      }
-      const seat = NET.links.length + 1;
-      NET.links.push({ conn, seat, profile: null });
-      netSendTo(conn, { type: 'welcome', seat, roomSize: NET.roomSize });
-      netUpdateLobby();
+      // 자리를 줄지 관전으로 받을지는 hello를 봐야 안다. 그때까지 대기열에 둔다.
+      NET.pending.push(conn);
     });
     conn.on('data', (msg) => netHostHandle(conn, msg));
     conn.on('close', () => netHostLinkGone(conn));
@@ -373,7 +381,36 @@ function netHostHandle(conn, msg) {
   const link = NET.links.find((l) => l.conn === conn);
 
   if (msg.type === 'hello') {
-    if (link) link.profile = netSanitizeProfile(msg.profile);
+    const profile = netSanitizeProfile(msg.profile);
+    const pi = NET.pending.indexOf(conn);
+    if (pi >= 0) {
+      // 아직 자리가 없는 연결이다. 여기서 관전인지 참가인지 정한다.
+      NET.pending.splice(pi, 1);
+      if (msg.spectate) {
+        netHostAcceptWatcher(conn, profile);
+        return;
+      }
+      // 이미 시작했거나 정원이 찼으면 자리는 못 준다. 관전은 할 수 있다고 알려준다.
+      if (NET.status === 'active' || NET.links.length >= NET.roomSize - 1) {
+        netSendTo(conn, { type: 'full', canSpectate: true });
+        setTimeout(() => {
+          try {
+            conn.close();
+          } catch (e) {
+            /* noop */
+          }
+        }, 200);
+        return;
+      }
+      const seat = NET.links.length + 1;
+      NET.links.push({ conn, seat, profile });
+      netSendTo(conn, { type: 'welcome', seat, roomSize: NET.roomSize });
+    } else if (link) {
+      link.profile = profile; // 이미 자리를 받은 사람이 프로필만 다시 보낸 경우
+    } else {
+      const w = NET.watchers.find((x) => x.conn === conn);
+      if (w) w.profile = profile;
+    }
     netUpdateLobby();
     // 정원이 다 찼고 모두 프로필을 보냈으면 시작한다.
     if (NET.status === 'waiting' && NET.links.length === NET.roomSize - 1 && NET.links.every((l) => l.profile)) {
@@ -383,6 +420,8 @@ function netHostHandle(conn, msg) {
   }
 
   if (msg.type === 'state') {
+    // 자리를 가진 사람만 판을 움직일 수 있다. 관전자가 보낸 상태는 버린다.
+    if (!link) return;
     // 게스트가 자기 턴을 마쳤다. 내 화면에 반영하고 나머지 게스트에게 중계한다.
     netApplyRemoteState(msg.state);
     netBroadcast({ type: 'state', state: msg.state }, conn);
@@ -390,25 +429,49 @@ function netHostHandle(conn, msg) {
   }
 
   if (msg.type === 'chat') {
-    if (!link) return;
+    // 관전자도 훈수는 둘 수 있다. 다만 누가 관전인지는 드러낸다.
+    const from = link || NET.watchers.find((w) => w.conn === conn);
+    if (!from) return;
     // 도배 방지: 같은 사람이 너무 빠르게 보내면 흘려보낸다.
     const now = Date.now();
-    if (link.lastChatAt && now - link.lastChatAt < 400) return;
-    link.lastChatAt = now;
+    if (from.lastChatAt && now - from.lastChatAt < 400) return;
+    from.lastChatAt = now;
     // 보낸 사람은 연결 정보로 덮어쓴다. 게스트가 남의 이름을 사칭할 수 없다.
+    const watching = !link;
     const entry = {
-      seat: link.seat,
-      name: link.profile ? link.profile.name : '상대',
+      seat: watching ? null : link.seat,
+      name: from.profile ? from.profile.name : watching ? '관전자' : '상대',
       text: msg.text,
+      watch: watching,
     };
     const shown = chatReceive(entry);
-    if (shown) netBroadcast({ type: 'chat', seat: shown.seat, name: shown.name, text: shown.text }, conn);
+    if (shown) {
+      netBroadcast({ type: 'chat', seat: shown.seat, name: shown.name, text: shown.text, watch: watching }, conn);
+    }
     return;
   }
 
   if (msg.type === 'left') {
     netHostLinkGone(conn, true);
   }
+}
+
+// 관전자는 정원과 무관하게 언제든 받는다. 이미 진행 중이면 지금 판을 바로 보낸다.
+function netHostAcceptWatcher(conn, profile) {
+  NET.watchers.push({ conn, profile });
+  netSendTo(conn, { type: 'welcome', seat: null, roomSize: NET.roomSize, spectator: true });
+  if (NET.status === 'active') {
+    netSendTo(conn, {
+      type: 'init',
+      seat: null,
+      state: netSerializeState(),
+      profiles: netProfileList(),
+      spectator: true,
+    });
+  }
+  chatSystem(`${profile ? profile.name : '누군가'}님이 관전을 시작했습니다.`);
+  netBroadcast({ type: 'sysChat', text: `${profile ? profile.name : '누군가'}님이 관전을 시작했습니다.` }, conn);
+  netUpdateLobby();
 }
 
 function netHostStartGame() {
@@ -427,6 +490,9 @@ function netHostStartGame() {
   NET.links.forEach((link) => {
     netSendTo(link.conn, { type: 'init', seat: link.seat, state: netSerializeState(), profiles });
   });
+  NET.watchers.forEach((w) => {
+    netSendTo(w.conn, { type: 'init', seat: null, state: netSerializeState(), profiles, spectator: true });
+  });
   renderNetPanel();
 }
 
@@ -434,6 +500,23 @@ function netHostStartGame() {
 // 회선 장애면 양쪽 다 "상대가 사라졌다"로 보이므로 둘 다 부전승을 먹는다.
 // 그래서 스스로 나갔다고 알려온 경우에만 승으로 친다.
 function netHostLinkGone(conn, left) {
+  // 관전자가 나가는 것은 판에 아무 영향이 없다. 조용히 지운다.
+  const wi = NET.watchers.findIndex((w) => w.conn === conn);
+  if (wi >= 0) {
+    const who = NET.watchers[wi].profile ? NET.watchers[wi].profile.name : '관전자';
+    NET.watchers.splice(wi, 1);
+    chatSystem(`${who}님이 관전을 마쳤습니다.`);
+    netBroadcast({ type: 'sysChat', text: `${who}님이 관전을 마쳤습니다.` });
+    netUpdateLobby();
+    return;
+  }
+  // 아직 자리도 못 받고 끊긴 연결
+  const pi = NET.pending.indexOf(conn);
+  if (pi >= 0) {
+    NET.pending.splice(pi, 1);
+    return;
+  }
+
   const idx = NET.links.findIndex((l) => l.conn === conn);
   if (idx < 0) return;
   const gone = NET.links[idx];
@@ -486,7 +569,8 @@ function netHostLinkGone(conn, left) {
 }
 
 // ============ 게스트 ============
-function netJoinRoom(rawCode) {
+// spectate가 참이면 자리를 받지 않고 관전으로 들어간다.
+function netJoinRoom(rawCode, spectate) {
   const code = (rawCode || '').trim().toUpperCase();
   if (!netAvailable()) {
     NET.status = 'error';
@@ -503,9 +587,14 @@ function netJoinRoom(rawCode) {
   NET.mode = 'online';
   NET.role = 'guest';
   NET.roomCode = code;
+  NET.lastCode = code;
   NET.status = 'connecting';
   NET.links = [];
   NET.opponents = [];
+  NET.spectator = !!spectate;
+  NET.watchers = [];
+  NET.pending = [];
+  NET.watcherCount = 0;
   renderNetPanel();
 
   NET.peerOpened = false;
@@ -525,7 +614,7 @@ function netJoinRoom(rawCode) {
     NET.links = [{ conn, seat: null, profile: null }];
     conn.on('open', () => {
       netClearTimer();
-      netSendTo(conn, { type: 'hello', profile: netMyProfile() });
+      netSendTo(conn, { type: 'hello', profile: netMyProfile(), spectate: !!spectate });
     });
     conn.on('data', netGuestHandle);
     conn.on('close', netGuestHostGone);
@@ -549,9 +638,12 @@ function netGuestHandle(msg) {
   if (!msg || !msg.type) return;
 
   if (msg.type === 'welcome') {
-    NET.seat = msg.seat;
+    // 관전으로 받아들여졌으면 자리는 없다. 방장이 알려준 대로 따른다.
+    NET.spectator = !!msg.spectator;
+    NET.seat = NET.spectator ? null : msg.seat;
     NET.roomSize = msg.roomSize;
     NET.status = 'waiting';
+    if (NET.spectator) chatSystem('관전으로 들어왔습니다. 대전에는 참여하지 않습니다.');
     renderNetPanel();
     return;
   }
@@ -559,14 +651,16 @@ function netGuestHandle(msg) {
   if (msg.type === 'lobby') {
     NET.lobby = Array.isArray(msg.names) ? msg.names.slice(0, 4).map((n) => String(n).slice(0, 12)) : [];
     NET.roomSize = msg.roomSize || NET.roomSize;
+    NET.watcherCount = Array.isArray(msg.watchers) ? msg.watchers.length : 0;
     renderNetPanel();
     return;
   }
 
   if (msg.type === 'init') {
-    NET.seat = msg.seat;
+    NET.spectator = !!msg.spectator;
+    NET.seat = NET.spectator ? null : msg.seat;
     NET.status = 'active';
-    chatSystem('대전이 시작되었습니다.');
+    chatSystem(NET.spectator ? '관전을 시작합니다.' : '대전이 시작되었습니다.');
     netSetOpponentsFrom(msg.profiles);
     netApplyRemoteState(msg.state);
     renderNetPanel();
@@ -583,10 +677,20 @@ function netGuestHandle(msg) {
     return;
   }
 
+  if (msg.type === 'sysChat') {
+    chatSystem(String(msg.text == null ? '' : msg.text).slice(0, 80));
+    return;
+  }
+
   if (msg.type === 'full') {
+    const code = NET.lastCode;
     NET.status = 'error';
-    NET.errorMsg = '방이 가득 찼습니다.';
+    NET.errorMsg = msg.canSpectate
+      ? '방에 빈 자리가 없습니다. 관전으로는 들어갈 수 있습니다.'
+      : '방이 가득 찼습니다.';
     netCleanupPeer();
+    NET.lastCode = code; // 정리하면서 지워지므로 관전 버튼을 위해 되살린다
+    NET.canSpectateFull = !!msg.canSpectate;
     renderNetPanel();
     return;
   }
@@ -603,12 +707,20 @@ function netGuestHandle(msg) {
   if (msg.type === 'peerLeft') {
     const who = msg.name || '참가자';
     const left = !!msg.left;
-    if (left) statsRecordWalkover(typeof msg.id === 'string' ? msg.id : null);
+    const watching = netIsSpectator();
+    if (left && !watching) statsRecordWalkover(typeof msg.id === 'string' ? msg.id : null);
     chatSystem(left ? `${who}님이 대전에서 나갔습니다.` : `${who}님의 연결이 끊어졌습니다.`);
     NET.status = 'error';
-    NET.errorMsg = left
-      ? `${who}님이 나가서 게임을 종료합니다. 부전승으로 기록했습니다.`
-      : `${who}님의 연결이 끊어져 게임을 종료합니다.`;
+    if (watching) {
+      // 관전자에게는 부전승이 없다. 판이 끝났다는 사실만 알린다.
+      NET.errorMsg = left
+        ? `${who}님이 나가서 대전이 끝났습니다. 관전을 마칩니다.`
+        : `${who}님의 연결이 끊어져 대전이 끝났습니다. 관전을 마칩니다.`;
+    } else {
+      NET.errorMsg = left
+        ? `${who}님이 나가서 게임을 종료합니다. 부전승으로 기록했습니다.`
+        : `${who}님의 연결이 끊어져 게임을 종료합니다.`;
+    }
     netCleanupPeer();
     renderNetPanel();
   }
@@ -628,7 +740,9 @@ function netUpdateLobby() {
   if (NET.role !== 'host') return;
   const names = [netMyProfile().name].concat(NET.links.map((l) => (l.profile ? l.profile.name : '접속 중...')));
   NET.lobby = names;
-  netBroadcast({ type: 'lobby', names, roomSize: NET.roomSize });
+  NET.watcherCount = NET.watchers.length;
+  const watchers = NET.watchers.map((w) => (w.profile ? w.profile.name : '관전자'));
+  netBroadcast({ type: 'lobby', names, roomSize: NET.roomSize, watchers });
   renderNetPanel();
 }
 
@@ -665,11 +779,18 @@ function netCleanupPeer(delayClose) {
   NET.seat = null;
   NET.opponents = [];
   NET.lobby = [];
+  NET.spectator = false;
+  NET.watchers = [];
+  NET.pending = [];
+  NET.watcherCount = 0;
+  NET.canSpectateFull = false;
+  NET.lastCode = '';
 }
 
 // 대전 중에 나가면 그 판은 패배로 남는다. 나가기 전에 한 번 묻는다.
 // 로비에서 나가거나 판이 이미 끝났으면 그냥 나간다.
 function netLeavingCostsGame() {
+  if (netIsSpectator()) return false; // 관전은 두고 있는 판이 없다
   return NET.mode === 'online' && NET.status === 'active' && G && !G.gameOver;
 }
 
@@ -699,6 +820,7 @@ function netPageHide(persisted) {
   if (persisted) return;
   // pagehide와 beforeunload가 둘 다 오는 브라우저가 있으므로 한 번만 처리한다
   if (NET.hidingGameId === (G && G.gameId)) return;
+  if (netIsSpectator()) return; // 관전자가 창을 닫는 것은 아무 일도 아니다
   if (NET.mode !== 'online' || NET.status !== 'active') return;
   if (!G || G.gameOver) return;
   // 내 패배는 localStorage에 곧바로 쓰이므로 확실히 남는다. 상대에게 보내는
@@ -901,7 +1023,11 @@ function renderNetPanelBody() {
         <input id="joinCodeInput" maxlength="4" placeholder="방 코드 4자리" autocomplete="off">
         <button data-net-act="join">참가하기</button>
       </div>
-      <div class="net-sub">방 인원은 위의 "인원"에서 고른 뒤 방을 만들어 주세요.</div>
+      <div class="net-row net-row-watch">
+        <span class="net-or">구경만 하려면</span>
+        <button data-net-act="spectate">관전하기</button>
+      </div>
+      <div class="net-sub">방 인원은 위의 "인원"에서 고른 뒤 방을 만들어 주세요. 관전은 정원과 상관없이, 판이 시작된 뒤에도 들어갈 수 있습니다.</div>
       <div class="net-sub"><button class="net-link" data-net-act="diag">연결이 안 되나요? 진단하기</button></div>
     </div>`;
     return;
@@ -917,9 +1043,12 @@ function renderNetPanelBody() {
   }
 
   if (NET.status === 'error') {
+    const watchBtn = NET.canSpectateFull && NET.lastCode
+      ? `<button data-net-act="spectateLast">관전으로 들어가기</button>`
+      : '';
     el.innerHTML = `<div class="net-box net-warn">
       ${escapeHtml(NET.errorMsg)}
-      <br><button data-net-act="retry">다시 시도</button>
+      <br>${watchBtn}<button data-net-act="retry">다시 시도</button>
       <button data-net-act="diag">진단하기</button>
     </div>`;
     return;
@@ -930,19 +1059,29 @@ function renderNetPanelBody() {
     const roster = NET.lobby.length
       ? `<div class="lobby-list">${NET.lobby.map((n) => `<span class="lobby-chip">${escapeHtml(n)}</span>`).join('')}</div>`
       : '';
+    const watchLine = NET.watcherCount ? ` · 관전 ${NET.watcherCount}명` : '';
+    if (NET.spectator) {
+      el.innerHTML = `<div class="net-box">
+        <div class="room-code-label">방 코드 ${NET.roomCode} <span class="watch-tag">관전</span></div>
+        ${roster}
+        <div class="net-sub">${joined} / ${NET.roomSize}명 참가${watchLine} · 대전이 시작되기를 기다리는 중입니다.</div>
+        <button data-net-act="leave">관전 그만두기</button>
+      </div>`;
+      return;
+    }
     if (NET.role === 'host') {
       el.innerHTML = `<div class="net-box">
         <div class="room-code-label">방 코드</div>
         <div class="room-code">${NET.roomCode}</div>
         ${roster}
-        <div class="net-sub">${joined} / ${NET.roomSize}명 참가 · 이 코드를 상대에게 알려주세요.</div>
+        <div class="net-sub">${joined} / ${NET.roomSize}명 참가${watchLine} · 이 코드를 상대에게 알려주세요.</div>
         <button data-net-act="leave">방 나가기</button>
       </div>`;
     } else {
       el.innerHTML = `<div class="net-box">
         <div class="room-code-label">방 코드 ${NET.roomCode}</div>
         ${roster}
-        <div class="net-sub">${joined} / ${NET.roomSize}명 참가 · 방장이 시작하기를 기다리는 중...</div>
+        <div class="net-sub">${joined} / ${NET.roomSize}명 참가${watchLine} · 방장이 시작하기를 기다리는 중...</div>
         <button data-net-act="leave">방 나가기</button>
       </div>`;
     }
@@ -950,9 +1089,17 @@ function renderNetPanelBody() {
   }
 
   if (NET.status === 'active') {
+    const watchLine = NET.watcherCount ? ` · 관전 ${NET.watcherCount}명` : '';
+    if (NET.spectator) {
+      el.innerHTML = `<div class="net-strip net-strip-watch">
+        <span class="watch-tag">관전</span> 온라인 ${NET.roomSize}인 대전 · 방 코드 <strong>${NET.roomCode}</strong> · 두지 않고 보고만 있습니다
+        <button class="net-leave" data-net-act="leave">관전 그만두기</button>
+      </div>`;
+      return;
+    }
     const roleLabel = NET.role === 'host' ? '방장' : '참가자';
     el.innerHTML = `<div class="net-strip">
-      온라인 ${NET.roomSize}인 대전 · 방 코드 <strong>${NET.roomCode}</strong> · 나: 플레이어 ${NET.seat + 1} (${roleLabel})
+      온라인 ${NET.roomSize}인 대전 · 방 코드 <strong>${NET.roomCode}</strong> · 나: 플레이어 ${NET.seat + 1} (${roleLabel})${watchLine}
       <button class="net-leave" data-net-act="leave">나가기</button>
     </div>`;
   }
@@ -993,6 +1140,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const input = document.getElementById('joinCodeInput');
       netJoinRoom(input ? input.value : '');
     }
+    if (act === 'spectate') {
+      const input = document.getElementById('joinCodeInput');
+      netJoinRoom(input ? input.value : '', true);
+    }
+    if (act === 'spectateLast') netJoinRoom(NET.lastCode, true);
     if (act === 'leave') netLeaveRequested();
     if (act === 'retry') netRetry();
     if (act === 'cancel') netRetry();

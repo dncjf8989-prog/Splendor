@@ -549,7 +549,11 @@ function renderBanner() {
   }
   let turnText = `${escapeHtml(currentPlayer().name)}의 차례입니다. (목표: ${winPoints()}점 이상)`;
   if (window.NET && NET.mode === 'online') {
-    turnText = canAct() ? `당신의 차례입니다. (목표: ${winPoints()}점 이상)` : `${escapeHtml(currentPlayer().name)}(상대방)의 차례를 기다리는 중입니다.`;
+    if (typeof netIsSpectator === 'function' && netIsSpectator()) {
+      turnText = `관전 중 · ${escapeHtml(currentPlayer().name)}의 차례입니다. (목표: ${winPoints()}점 이상)`;
+    } else {
+      turnText = canAct() ? `당신의 차례입니다. (목표: ${winPoints()}점 이상)` : `${escapeHtml(currentPlayer().name)}(상대방)의 차례를 기다리는 중입니다.`;
+    }
   } else if (window.NET && NET.mode === 'single') {
     turnText = canAct() ? `당신의 차례입니다. (목표: ${winPoints()}점 이상)` : 'AI가 생각하는 중입니다...';
   }

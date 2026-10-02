@@ -46,7 +46,8 @@ function chatSend(raw) {
   if (!chatAvailable()) return;
   const text = chatClean(raw);
   if (!text) return;
-  const entry = { seat: NET.seat, name: chatMyName(), text };
+  const watching = typeof netIsSpectator === 'function' && netIsSpectator();
+  const entry = { seat: NET.seat, name: chatMyName(), text, watch: watching };
   chatAppend(entry);
   netSendChat(entry);
 }
@@ -65,6 +66,7 @@ function chatReceive(entry) {
     seat: Number.isInteger(entry.seat) ? entry.seat : null,
     name: chatClean(entry.name).slice(0, 12) || '상대',
     text,
+    watch: !!entry.watch,
   };
   chatAppend(clean);
   return clean;
@@ -84,8 +86,10 @@ function renderChat() {
   listEl.innerHTML = CHAT.messages
     .map((m) => {
       if (m.system) return `<li class="chat-system">${escapeHtml(m.text)}</li>`;
-      const mine = m.seat === mySeat ? ' chat-mine' : '';
-      return `<li class="chat-line${mine}"><span class="chat-name">${escapeHtml(m.name)}</span>${escapeHtml(m.text)}</li>`;
+      // 관전자끼리는 자리가 둘 다 null이라 서로를 "나"로 볼 수 있다. 자리가 있을 때만 내 줄로 본다.
+      const mine = mySeat != null && m.seat === mySeat ? ' chat-mine' : '';
+      const tag = m.watch ? '<span class="chat-watch">관전</span>' : '';
+      return `<li class="chat-line${mine}">${tag}<span class="chat-name">${escapeHtml(m.name)}</span>${escapeHtml(m.text)}</li>`;
     })
     .join('');
   listEl.scrollTop = listEl.scrollHeight;
