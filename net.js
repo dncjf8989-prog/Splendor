@@ -421,10 +421,8 @@ function netHostHandle(conn, msg) {
       if (w) w.profile = profile;
     }
     netUpdateLobby();
-    // 정원이 다 찼고 모두 프로필을 보냈으면 시작한다.
-    if (NET.status === 'waiting' && NET.links.length === NET.roomSize - 1 && NET.links.every((l) => l.profile)) {
-      netHostStartGame();
-    }
+    // 정원이 차도 자동으로 시작하지 않는다. 방장이 '시작하기'를 눌러야 시작한다.
+    // 자동으로 시작해 버리면 관전자를 부르거나 늦는 사람을 기다릴 틈이 없다.
     return;
   }
 
@@ -483,7 +481,21 @@ function netHostAcceptWatcher(conn, profile) {
   netUpdateLobby();
 }
 
+// 자리가 다 찼고 모두 프로필을 보냈는가. 시작 버튼을 열어줄지 정한다.
+function netRoomReady() {
+  return (
+    NET.role === 'host' &&
+    NET.links.length === NET.roomSize - 1 &&
+    NET.links.every((l) => l.profile)
+  );
+}
+
 function netHostStartGame() {
+  if (!netRoomReady()) {
+    log('아직 인원이 다 모이지 않았습니다.');
+    renderNetPanel();
+    return;
+  }
   // 선공은 매 판 무작위로 정한다. 방장이 뽑아서 상태에 담아 전원에게 알리므로
   // 모두가 같은 선공을 본다 (재대결 때도 다시 뽑는다).
   newGame(NET.roomSize, Math.floor(Math.random() * NET.roomSize));
@@ -1081,12 +1093,19 @@ function renderNetPanelBody() {
       return;
     }
     if (NET.role === 'host') {
+      const ready = netRoomReady();
       el.innerHTML = `<div class="net-box">
         <div class="room-code-label">방 코드</div>
         <div class="room-code">${NET.roomCode}</div>
         ${roster}
         <div class="net-sub">${joined} / ${NET.roomSize}명 참가${watchLine} · 이 코드를 상대에게 알려주세요.</div>
-        <button data-net-act="leave">방 나가기</button>
+        <div class="net-sub">${ready
+          ? '다 모였습니다. 관전할 사람까지 들어온 뒤에 시작하세요.'
+          : '인원이 다 차면 시작할 수 있습니다.'}</div>
+        <div class="net-row">
+          <button class="net-start" data-net-act="start" ${ready ? '' : 'disabled'}>시작하기</button>
+          <button data-net-act="leave">방 나가기</button>
+        </div>
       </div>`;
     } else {
       el.innerHTML = `<div class="net-box">
@@ -1156,6 +1175,7 @@ document.addEventListener('DOMContentLoaded', () => {
       netJoinRoom(input ? input.value : '', true);
     }
     if (act === 'spectateLast') netJoinRoom(NET.lastCode, true);
+    if (act === 'start') netHostStartGame();
     if (act === 'leave') netLeaveRequested();
     if (act === 'retry') netRetry();
     if (act === 'cancel') netRetry();

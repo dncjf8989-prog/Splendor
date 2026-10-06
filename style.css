@@ -1361,3 +1361,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 :root[data-quiet] .watch-tag { border-radius: 2px; }
 :root[data-quiet] .chat-watch { border-radius: 2px; }
+.net-start { font-weight: 700; padding: 8px 18px; background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.net-start:disabled { background: var(--panel); color: var(--muted); border-color: var(--border); }
+:root[data-quiet] .net-start { background: #e8e8e6; color: var(--text); border-color: #b8b8b8; }
