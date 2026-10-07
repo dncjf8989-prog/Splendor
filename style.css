@@ -311,13 +311,16 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 #nobles {
   display: flex;
   justify-content: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  /* 좁은 화면에서 타일을 찌그러뜨리는 대신 다음 줄로 넘긴다 */
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 18px;
 }
 
 .noble-tile {
   width: 70px;
   height: 70px;
+  flex: 0 0 auto;
   border-radius: 8px;
   background: var(--noble-bg);
   border: 2px solid var(--gem-gold);
@@ -611,6 +614,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   #tableLayout { grid-template-columns: 1fr; }
   .card-tile { width: 84px; min-height: 110px; }
   #header { flex-wrap: wrap; gap: 8px; }
+  /* 휴대폰에서는 귀족 5장이 한 줄에 들어가도록 조금 줄인다 (두 줄이 되면 보드가 밀린다) */
+  #nobles { gap: 8px; margin-bottom: 12px; }
+  .noble-tile { width: 62px; height: 62px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1332,8 +1338,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 /* 칸을 붙여 표처럼 만든다. 떨어져 있는 네모는 멀리서도 "타일"로 보인다. */
 :root[data-quiet] .tier-cards { gap: 0; }
 :root[data-quiet] .tier-cards .card-tile { margin: 0 -1px -1px 0; }
-:root[data-quiet] #nobles { gap: 0; }
-:root[data-quiet] .noble-tile { margin-right: -1px; }
 :root[data-quiet] .tier { margin-bottom: 14px; }
 :root[data-quiet] .tier-label { font-size: 11px; }
 :root[data-quiet] #board { padding: 12px 10px; }
