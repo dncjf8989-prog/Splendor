@@ -39,6 +39,20 @@ function dbRequest(path, options) {
     });
 }
 
+// 한 자리의 마무리 성적. 나중에 "선공이 유리했나", "접전이었나"를 보려면
+// 승패만으로는 모자라서 점수·카드·귀족 수를 같이 남긴다.
+// 짧은 이름을 쓰는 것은 판이 쌓여도 기록이 가벼우라는 뜻이다.
+//   s=점수  c=개발 카드 수  nb=귀족 수
+function dbSeatStats(seat) {
+  const pl = G && G.players && G.players[seat];
+  if (!pl) return {};
+  return {
+    s: pl.points || 0,
+    c: Array.isArray(pl.cards) ? pl.cards.length : 0,
+    nb: Array.isArray(pl.nobles) ? pl.nobles.length : 0,
+  };
+}
+
 // ---- 한 판을 적는다 ----
 // 같은 판을 참가자 전원이 각각 올린다. 판 번호(gameId)가 모두 같으므로
 // 같은 자리에 같은 내용이 쓰인다. 한 명이 나가버려도 남은 사람이 올린다.
@@ -60,11 +74,17 @@ function dbGameRecord() {
 
   const p = seats
     .sort((a, b) => a.seat - b.seat)
-    .map((s) => ({ id: s.id, name: String(s.name).slice(0, 12), r: statsResultOf(s.seat) }));
+    .map((s) =>
+      Object.assign(
+        { id: s.id, name: String(s.name).slice(0, 12), r: statsResultOf(s.seat) },
+        dbSeatStats(s.seat)
+      )
+    );
   // 도중에 나간 사람도 그 판의 참가자다. statsResultOf가 이미 'l'로 돌려준다.
   if (p.some((x) => !x.r)) return null;
 
-  return { at: Date.now(), n: count, p };
+  // f = 선공 자리. 선공이 실제로 유리한지는 이 값이 쌓여야 알 수 있다.
+  return { at: Date.now(), n: count, f: G.startIndex || 0, p };
 }
 
 // 중도에 끝난 판. 나간 사람은 패, 남은 사람은 승으로 적는다.
@@ -81,13 +101,18 @@ function dbGameRecordAbandoned(leaverId) {
   return {
     at: Date.now(),
     n: count,
+    f: G.startIndex || 0,
+    ab: 1, // 중도에 끝난 판. 끝까지 둔 판과 섞어 보면 안 되므로 표시해 둔다.
     p: seats
       .sort((a, b) => a.seat - b.seat)
       // 이번에 나간 사람뿐 아니라, 앞서 이미 나간 사람도 패다.
       .map((s) => {
         const seat = G.players[s.seat];
         const out = s.id === leaverId || (seat && seat.left);
-        return { id: s.id, name: String(s.name).slice(0, 12), r: out ? 'l' : 'w' };
+        return Object.assign(
+          { id: s.id, name: String(s.name).slice(0, 12), r: out ? 'l' : 'w' },
+          dbSeatStats(s.seat)
+        );
       }),
   };
 }
@@ -119,6 +144,8 @@ function dbValidGame(g) {
   if (!g || typeof g !== 'object') return false;
   if (!Array.isArray(g.p) || g.p.length < 2 || g.p.length > 4) return false;
   if (g.n !== g.p.length) return false;
+  // f(선공 자리)는 나중에 생긴 항목이라 예전 기록에는 없다. 있을 때만 본다.
+  if (g.f != null && !(Number.isInteger(g.f) && g.f >= 0 && g.f < g.n)) return false;
   const ids = {};
   return g.p.every((x) => {
     if (!x || typeof x.id !== 'string' || !x.id) return false;
