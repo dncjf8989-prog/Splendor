@@ -132,7 +132,7 @@ function statsMyResult() {
 function statsOpponents() {
   const count = G && (G.playerCount || G.players.length);
   if (count !== 2) return [];
-  if (!window.NET || NET.mode !== 'online') return [{ key: 'AI', name: 'AI' }];
+  if (!window.NET || NET.mode !== 'online') return []; // AI는 상대별 전적에 넣지 않는다
   const list = (NET.opponents || [])
     .filter((o) => o && o.id)
     .map((o) => ({ key: o.id, name: o.name || '상대' }));
@@ -143,6 +143,8 @@ function statsOpponents() {
 // 같은 판을 두 번 세지 않는다.
 function maybeRecordResult() {
   if (!G || !G.gameOver || !G.gameId) return;
+  // 싱글(AI 상대)은 전적에 넣지 않는다. 사람끼리 둔 판만 센다.
+  if (!window.NET || NET.mode !== 'online') return;
 
   const s = statsLoad();
   if (STATS.lastRecordedGameId === G.gameId || s.lastRecordedGameId === G.gameId) {
@@ -153,10 +155,9 @@ function maybeRecordResult() {
   const result = statsMyResult();
   if (!result) return;
 
-  const mode = window.NET && NET.mode === 'online' ? 'online' : 'single';
   const count = G.playerCount || G.players.length;
 
-  statsBucket(s.totals[mode], count)[result] += 1;
+  statsBucket(s.totals.online, count)[result] += 1;
 
   // 2인 대전에서는 판 승패가 곧 그 상대와의 승패다.
   statsOpponents().forEach((opp) => {
@@ -317,9 +318,8 @@ function renderStatsPanel() {
   const s = statsLoad();
   const f = statsFilter;
 
-  const single = statsSum(s.totals.single, f);
-  const online = statsSum(s.totals.online, f);
-  const all = statsAddInto(statsAddInto(statsBlank(), single), online);
+  // 싱글은 더 이상 세지 않는다. 예전에 쌓인 값은 지우지 않고 보여주지만 않는다.
+  const all = statsSum(s.totals.online, f);
   const allSum = statsSummary(all);
 
   const tabs = [['all', '전체'], ['2', '2인'], ['3', '3인'], ['4', '4인']]
@@ -331,7 +331,7 @@ function renderStatsPanel() {
   if (f === 'all') {
     const chips = ['2', '3', '4']
       .map((n) => {
-        const rec = statsAddInto(statsSum(s.totals.single, n), statsSum(s.totals.online, n));
+        const rec = statsSum(s.totals.online, n);
         const sum = statsSummary(rec);
         if (!sum.total) return '';
         return `<span class="stats-chip">${n}인 <strong>${sum.total}전</strong> ${rec.w}승 ${rec.l}패 ${sum.rate}%</span>`;
@@ -347,6 +347,7 @@ function renderStatsPanel() {
     oppSection = `<div class="stats-warn">${f}인 대전은 상대별 전적을 남기지 않습니다. 이긴 사람만 승, 나머지는 패로 집계합니다.</div>`;
   } else {
     const opponents = Object.entries(s.opponents)
+      .filter(([key]) => key !== 'AI') // 예전에 쌓인 AI 기록은 더 이상 보여주지 않는다
       .map(([key, rec]) => ({ key, name: rec.name, w: statsNum(rec.w), l: statsNum(rec.l), d: statsNum(rec.d) }))
       .filter((o) => o.w + o.l + o.d > 0)
       .sort((a, b) => b.w + b.l + b.d - (a.w + a.l + a.d));
@@ -356,7 +357,7 @@ function renderStatsPanel() {
           .map((o) => {
             const sum = statsSummary(o);
             return `<tr>
-              <td class="stats-name">${o.key === 'AI' ? '🤖 AI' : escapeHtml(o.name)}</td>
+              <td class="stats-name">${escapeHtml(o.name)}</td>
               <td>${sum.total}전</td>
               <td class="stats-w">${o.w}승</td>
               <td class="stats-l">${o.l}패</td>
@@ -385,14 +386,14 @@ function renderStatsPanel() {
         <span class="stats-big-num stats-l">${all.l}</span><span class="stats-big-label">패</span>
         <span class="stats-big-num">${all.d}</span><span class="stats-big-label">무</span>
       </div>
-      <div class="stats-sub">승률 ${allSum.rate}% · 싱글 ${single.w}승 ${single.l}패 · 온라인 ${online.w}승 ${online.l}패</div>
+      <div class="stats-sub">승률 ${allSum.rate}% · 온라인 대전만 셉니다 (싱글은 기록하지 않습니다)</div>
       ${byCount}
     </div>
 
     <div class="stats-section-label">랭킹<span class="stats-hint">온라인 대전 기록만 셉니다</span></div>
     ${statsRankingHtml(f)}
 
-    <div class="stats-section-label">상대별 전적<span class="stats-hint">1:1(2인) 대전만 기록합니다</span></div>
+    <div class="stats-section-label">상대별 전적<span class="stats-hint">온라인 1:1(2인) 대전만 기록합니다</span></div>
     ${oppSection}
 
     <div class="stats-footer">

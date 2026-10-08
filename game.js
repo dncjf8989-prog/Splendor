@@ -742,11 +742,8 @@ function seatRecordLine(seat) {
   if (!G) return '';
   const count = String(G.playerCount || G.players.length);
   const online = !!(window.NET && NET.mode === 'online');
-  if (!online) {
-    // 싱글에서는 AI 전적이라는 게 없다. 내 줄만 붙인다.
-    if (seat !== HUMAN_SEAT) return '';
-    return recordLineHtml('싱글', count, localRecordOf('single', count));
-  }
+  // 싱글은 전적을 남기지 않으므로 보여줄 것도 없다.
+  if (!online) return '';
   const shared = boardRecordOf(seat, count);
   if (shared) return recordLineHtml('온라인', count, shared);
   // 전체 기록을 아직 못 불러왔으면 적어도 내 것은 보여준다.
