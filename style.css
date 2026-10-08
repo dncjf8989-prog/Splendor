@@ -1368,3 +1368,19 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .net-start { font-weight: 700; padding: 8px 18px; background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 .net-start:disabled { background: var(--panel); color: var(--muted); border-color: var(--border); }
 :root[data-quiet] .net-start { background: #e8e8e6; color: var(--text); border-color: #b8b8b8; }
+
+/* ============ 카드가 날아가는 모션 ============ */
+.fly-card {
+  position: fixed;
+  z-index: 45; /* 팝업(50~60)보다 아래. 버릴 토큰을 고르는 중에 카드가 위를 가리면 안 된다 */
+  pointer-events: none;
+  margin: 0;
+  box-shadow: 0 6px 20px var(--modal-shadow);
+  transition: transform 0.62s cubic-bezier(0.34, 0.1, 0.2, 1), opacity 0.62s ease-in;
+}
+.player-panel.panel-got { animation: panelGot 0.9s ease; }
+@keyframes panelGot {
+  0% { box-shadow: none; }
+  35% { box-shadow: 0 0 0 3px var(--accent); }
+  100% { box-shadow: none; }
+}

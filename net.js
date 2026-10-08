@@ -201,6 +201,9 @@ function netSerializeState() {
     logs: G.logs.slice(0, 20),
     gameOver: G.gameOver,
     winnerText: G.winnerText,
+    // 누가 어떤 카드를 가져갔는지. 받는 쪽에서 그 카드를 날려 보여준다.
+    actionNo: G.actionNo || 0,
+    lastAction: G.lastAction || null,
   };
 }
 
@@ -221,6 +224,8 @@ function netApplyRemoteState(state) {
     logs: state.logs || [],
     gameOver: !!state.gameOver,
     winnerText: state.winnerText || '',
+    actionNo: state.actionNo || 0,
+    lastAction: state.lastAction || null,
   };
   render();
 }
@@ -684,6 +689,9 @@ function netGuestHandle(msg) {
     NET.status = 'active';
     chatSystem(NET.spectator ? '관전을 시작합니다.' : '대전이 시작되었습니다.');
     netSetOpponentsFrom(msg.profiles);
+    // 들어오기 전에 벌어진 한 수가 뒤늦게 날아가면 헷갈린다.
+    // netApplyRemoteState가 안에서 그리므로 적용하기 전에 끊어둬야 한다.
+    if (typeof animSkipTo === 'function') animSkipTo((msg.state && msg.state.actionNo) || 0);
     netApplyRemoteState(msg.state);
     if (typeof boardEnsureFresh === 'function') boardEnsureFresh();
     renderNetPanel();

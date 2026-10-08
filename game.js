@@ -100,6 +100,10 @@ function newGame(playerCount, startIndex) {
     nobles: shuffle(NOBLES).slice(0, rules.nobles),
     players,
     startIndex: first,
+    // 마지막으로 누가 무엇을 가져갔는지. 화면에서 카드가 날아가는 데 쓴다.
+    // 온라인에서는 상태와 함께 전달되어 상대 화면에서도 똑같이 보인다.
+    actionNo: 0,
+    lastAction: null,
     currentIndex: first,
     pending: [],
     discardState: null,
@@ -223,6 +227,28 @@ function drawFromDeck(tierIdx) {
   return tier.deck.length ? tier.deck.pop() : null;
 }
 
+// 누가 어떤 카드를 가져갔는지 적어둔다. 번호를 매겨 같은 행동을 두 번
+// 그리지 않게 한다 (상태가 여러 번 와도 한 번만 날아간다).
+function noteAction(kind, seat, card, tierIdx, idx) {
+  if (!G) return;
+  G.actionNo = (G.actionNo || 0) + 1;
+  G.lastAction = {
+    no: G.actionNo,
+    kind, // 'buy' | 'reserve' | 'buyReserved'
+    seat,
+    tier: tierIdx == null ? null : tierIdx,
+    idx: idx == null ? null : idx,
+    card,
+  };
+}
+
+// 진행 기록에 어떤 카드였는지 같이 남긴다. 숫자만 보고는 뭘 샀는지 모른다.
+function cardLabel(card) {
+  if (!card) return '카드';
+  const gem = GEM_LABEL[card.gem] || '';
+  return card.points > 0 ? `${gem} ${card.points}점 카드` : `${gem} 카드`;
+}
+
 function buyBoardCard(tierIdx, idx) {
   if (G.pending.length > 0 || G.discardState || G.gameOver || G.nobleChoice || !canAct()) return;
   const card = G.tiers[tierIdx].faceUp[idx];
@@ -245,7 +271,8 @@ function buyBoardCard(tierIdx, idx) {
   player.cards.push(card);
   player.bonuses[card.gem] = (player.bonuses[card.gem] || 0) + 1;
   player.points += card.points;
-  log(`${player.name}이(가) 티어${tierIdx + 1} 카드를 구매했습니다. (+${card.points}점)`);
+  noteAction('buy', G.currentIndex, card, tierIdx, idx);
+  log(`${player.name}이(가) 티어${tierIdx + 1} ${cardLabel(card)}를 구매했습니다. (+${card.points}점)`);
   resolveActionEnd(player);
 }
 
@@ -271,7 +298,8 @@ function buyReservedCard(idx) {
   player.cards.push(card);
   player.bonuses[card.gem] = (player.bonuses[card.gem] || 0) + 1;
   player.points += card.points;
-  log(`${player.name}이(가) 예약 카드를 구매했습니다. (+${card.points}점)`);
+  noteAction('buyReserved', G.currentIndex, card, null, null);
+  log(`${player.name}이(가) 예약해둔 ${cardLabel(card)}를 구매했습니다. (+${card.points}점)`);
   resolveActionEnd(player);
 }
 
@@ -293,7 +321,8 @@ function reserveCard(tierIdx, idx) {
     player.tokens.gold++;
     gainedGold = true;
   }
-  log(`${player.name}이(가) 티어${tierIdx + 1} 카드를 예약했습니다.${gainedGold ? ' (골드 +1)' : ''}`);
+  noteAction('reserve', G.currentIndex, card, tierIdx, idx);
+  log(`${player.name}이(가) 티어${tierIdx + 1} ${cardLabel(card)}를 예약했습니다.${gainedGold ? ' (골드 +1)' : ''}`);
   resolveActionEnd(player);
 }
 
@@ -538,6 +567,8 @@ function render() {
   renderPending();
   renderPlayers();
   renderLog();
+  // 다 그린 뒤에 띄워야 출발점과 도착점의 위치가 맞는다
+  if (typeof animMaybePlay === 'function') animMaybePlay();
   renderModal();
 }
 
@@ -668,7 +699,7 @@ function renderPlayerPanel(p, i) {
   const held = totalTokens(p);
   const noblesHtml = p.nobles.map(() => `<span class="noble-mini">★</span>`).join('');
   return `
-    <div class="player-panel ${isCurrent ? 'active' : ''}${p.left ? ' player-left' : ''}">
+    <div class="player-panel ${isCurrent ? 'active' : ''}${p.left ? ' player-left' : ''}" data-seat="${i}">
       <h3>${escapeHtml(p.name)}${netTag} ${orderTag}${p.left ? '<span class="left-tag">나감</span>' : isCurrent ? '<span class="turn-tag">현재 턴</span>' : ''}</h3>
       ${seatRecordLine(i)}
       <div class="player-points">점수: ${p.points}점 ${noblesHtml}</div>
