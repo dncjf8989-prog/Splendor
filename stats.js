@@ -235,8 +235,11 @@ let statsFilter = 'all'; // 'all' | '2' | '3' | '4'
 
 function statsSummary(rec) {
   const total = rec.w + rec.l + rec.d;
-  const rate = total ? Math.round((rec.w / total) * 100) : 0;
-  return { total, rate };
+  const rate = total ? (rec.w / total) * 100 : 0;
+  // 랭킹과 똑같은 문구로 적는다. 한쪽은 66%, 한쪽은 65.9%로 나오면
+  // 같은 값인데도 달라 보인다.
+  const rateText = typeof boardRateText === 'function' ? boardRateText(rate) : String(Math.round(rate));
+  return { total, rate: Math.round(rate), rateText };
 }
 
 function statsAddInto(target, src) {
@@ -356,7 +359,7 @@ function renderStatsPanel() {
         const rec = statsSum(totals, n);
         const sum = statsSummary(rec);
         if (!sum.total) return '';
-        return `<span class="stats-chip">${n}인 <strong>${sum.total}전</strong> ${rec.w}승 ${rec.l}패 ${sum.rate}%</span>`;
+        return `<span class="stats-chip">${n}인 <strong>${sum.total}전</strong> ${rec.w}승 ${rec.l}패 ${sum.rateText}%</span>`;
       })
       .filter(Boolean)
       .join('');
@@ -388,7 +391,7 @@ function renderStatsPanel() {
               <td class="stats-w">${o.w}승</td>
               <td class="stats-l">${o.l}패</td>
               <td>${o.d}무</td>
-              <td class="stats-rate">${sum.rate}%</td>
+              <td class="stats-rate">${sum.rateText}%</td>
             </tr>`;
           })
           .join('')
@@ -412,7 +415,7 @@ function renderStatsPanel() {
         <span class="stats-big-num stats-l">${all.l}</span><span class="stats-big-label">패</span>
         <span class="stats-big-num">${all.d}</span><span class="stats-big-label">무</span>
       </div>
-      <div class="stats-sub">승률 ${allSum.rate}% · 온라인 대전만 셉니다 (싱글은 기록하지 않습니다)</div>
+      <div class="stats-sub">승률 ${allSum.rateText}% · 온라인 대전만 셉니다 (싱글은 기록하지 않습니다)</div>
       <div class="stats-sub stats-src${fromBoard ? '' : ' stats-src-local'}">${escapeHtml(srcNote)}</div>
       ${missNote}
       ${byCount}
