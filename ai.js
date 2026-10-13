@@ -66,6 +66,9 @@ function aiVisibleCards(player) {
     });
   });
   player.reserved.forEach((card, idx) => {
+    // 가려진 카드({h:1})에는 비용이 없다. 내 예약은 늘 보이지만, 모양이
+    // 달라진 값이 흘러들어도 여기서 멈추지 않게 걸러둔다.
+    if (!card || !card.cost) return;
     list.push({ card, source: { type: 'reserved', idx } });
   });
   return list;

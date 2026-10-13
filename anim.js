@@ -8,7 +8,7 @@
 // 전달되므로 상대 화면에서도 똑같이 보인다. 번호(no)로 같은 행동을 두 번
 // 그리지 않는다.
 
-const ANIM = { shown: 0, ms: 620 };
+const ANIM = { shown: 0, gameId: null, ms: 620 };
 window.ANIM = ANIM;
 
 // 이미 지나간 행동은 띄우지 않는다. 방에 처음 들어왔을 때처럼 "과거의 한 수"를
@@ -16,8 +16,9 @@ window.ANIM = ANIM;
 //
 // 상태를 적용하기 "전에" 불러야 한다. netApplyRemoteState가 안에서 render()를
 // 부르므로, 적용한 뒤에 부르면 이미 날아간 뒤다.
-function animSkipTo(no) {
+function animSkipTo(no, gameId) {
   ANIM.shown = Number.isFinite(no) ? no : 0;
+  if (gameId) ANIM.gameId = gameId;
 }
 
 // 지금 들고 있는 상태를 기준으로 맞춘다 (이미 적용한 뒤에 쓰는 보조 수단)
@@ -34,7 +35,10 @@ function animCenter(el) {
 function animSourceEl(a) {
   if (a.kind === 'buyReserved') return null; // 예약해둔 카드는 자기 자리에서 나간다
   const tier = document.getElementById('tier' + ((a.tier || 0) + 1));
-  const row = tier && tier.querySelector('.tier-cards');
+  if (!tier) return null;
+  // 덱에서 뒷면으로 예약한 경우에는 덱 표시에서 출발한다
+  if (a.kind === 'reserveDeck') return tier.querySelector('.deck-count') || tier;
+  const row = tier.querySelector('.tier-cards');
   return row ? row.children[a.idx] || null : null;
 }
 
@@ -43,7 +47,14 @@ function animTargetEl(a) {
 }
 
 function animMaybePlay() {
-  if (!G || !G.lastAction) return;
+  if (!G) return;
+  // 새 판이 시작되면 행동 번호가 1부터 다시 매겨진다. 세던 번호를 같이
+  // 되돌리지 않으면 재대결 첫 수들이 통째로 안 날아간다.
+  if (ANIM.gameId !== G.gameId) {
+    ANIM.gameId = G.gameId;
+    ANIM.shown = 0;
+  }
+  if (!G.lastAction) return;
   const a = G.lastAction;
   if (!a.no || a.no <= ANIM.shown) return;
   ANIM.shown = a.no;
@@ -62,23 +73,31 @@ function animFly(a) {
   animPulse(target);
 
   const src = animSourceEl(a);
-  if (!src || !a.card) return; // 출발점을 못 찾으면 깜빡임만 준다
+  const faceDown = a.kind === 'reserveDeck'; // 무슨 카드인지 아무도 모른다
+  if (!src || (!a.card && !faceDown)) return; // 출발점을 못 찾으면 깜빡임만 준다
 
   const from = animCenter(src);
   const to = animCenter(target);
 
   const ghost = document.createElement('div');
-  ghost.className = 'fly-card card-tile gem-border-' + a.card.gem;
-  ghost.innerHTML = `
-    <div class="card-top">
-      <span class="card-points">${a.card.points > 0 ? a.card.points : ''}</span>
-      <span class="card-gem gem-${a.card.gem}"></span>
-    </div>
-    <div class="card-cost">${typeof renderCostIcons === 'function' ? renderCostIcons(a.card.cost) : ''}</div>`;
-  ghost.style.width = from.w + 'px';
-  ghost.style.minHeight = from.h + 'px';
-  ghost.style.left = from.x - from.w / 2 + 'px';
-  ghost.style.top = from.y - from.h / 2 + 'px';
+  if (faceDown) {
+    ghost.className = 'fly-card card-tile card-back';
+  } else {
+    ghost.className = 'fly-card card-tile gem-border-' + a.card.gem;
+    ghost.innerHTML = `
+      <div class="card-top">
+        <span class="card-points">${a.card.points > 0 ? a.card.points : ''}</span>
+        <span class="card-gem gem-${a.card.gem}"></span>
+      </div>
+      <div class="card-cost">${typeof renderCostIcons === 'function' ? renderCostIcons(a.card.cost) : ''}</div>`;
+  }
+  // 덱 표시는 글자라 작다. 카드 크기로 띄운다.
+  const w = faceDown ? 96 : from.w;
+  const h = faceDown ? 120 : from.h;
+  ghost.style.width = w + 'px';
+  ghost.style.minHeight = h + 'px';
+  ghost.style.left = from.x - w / 2 + 'px';
+  ghost.style.top = from.y - h / 2 + 'px';
   document.body.appendChild(ghost);
 
   const dx = to.x - from.x;

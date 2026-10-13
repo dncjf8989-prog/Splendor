@@ -1384,3 +1384,18 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   35% { box-shadow: 0 0 0 3px var(--accent); }
   100% { box-shadow: none; }
 }
+
+/* ============ 뒷면 카드 (남의 예약 / 덱에서 뽑은 것) ============ */
+.card-tile.card-back {
+  background:
+    repeating-linear-gradient(45deg, var(--card-empty-a), var(--card-empty-a) 7px, var(--card-empty-b) 7px, var(--card-empty-b) 14px);
+  border-color: var(--border);
+  border-style: solid;
+}
+.deck-reserve {
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 11px;
+  vertical-align: middle;
+}
+:root[data-quiet] .card-tile.card-back { background: var(--card-empty-a); }

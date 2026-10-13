@@ -187,6 +187,18 @@ function netRandomRoomCode() {
 }
 
 // ============ 상태 직렬화 ============
+// 예약 카드는 본인만 본다. 판 정보에는 장수만 싣고 내용은 아예 빼서 보낸다.
+// 화면에서만 가리면 개발자도구로 들여다볼 수 있다.
+//
+// 내 것까지 가려서 보내고, 받는 쪽은 자기 예약만 자기가 들고 있던 것으로
+// 지킨다. 그래야 허브인 방장도 남의 예약을 알 수 없다.
+function netHideReserved(players) {
+  return players.map((p) => {
+    if (!p || !Array.isArray(p.reserved) || !p.reserved.length) return p;
+    return Object.assign({}, p, { reserved: p.reserved.map(() => ({ h: 1 })) });
+  });
+}
+
 function netSerializeState() {
   return {
     gameId: G.gameId,
@@ -195,7 +207,7 @@ function netSerializeState() {
     bank: G.bank,
     tiers: G.tiers.map((t) => ({ deck: t.deck, faceUp: t.faceUp })),
     nobles: G.nobles,
-    players: G.players,
+    players: netHideReserved(G.players),
     startIndex: G.startIndex,
     currentIndex: G.currentIndex,
     logs: G.logs.slice(0, 20),
@@ -207,7 +219,11 @@ function netSerializeState() {
   };
 }
 
+// 오는 판 정보에는 모두의 예약이 가려져 있다. 내 자리 것만 내가 들고 있던
+// 것으로 되돌린다. 내 예약은 나만 바꿀 수 있으므로 내 쪽이 늘 맞다.
 function netApplyRemoteState(state) {
+  const prev = G && Array.isArray(G.players) ? G.players : null;
+  const sameGame = !!(G && state && G.gameId && state.gameId === G.gameId);
   G = {
     gameId: state.gameId,
     playerCount: state.playerCount,
@@ -227,6 +243,11 @@ function netApplyRemoteState(state) {
     actionNo: state.actionNo || 0,
     lastAction: state.lastAction || null,
   };
+  // 새 판이면 지킬 것이 없다 (재대결 때 지난 판 예약이 되살아나면 안 된다).
+  const mine = window.NET ? NET.seat : null;
+  if (sameGame && prev && Number.isInteger(mine) && G.players[mine] && prev[mine]) {
+    if (Array.isArray(prev[mine].reserved)) G.players[mine].reserved = prev[mine].reserved;
+  }
   render();
 }
 
@@ -311,11 +332,15 @@ function netSendChat(entry) {
   else netSendToHost(msg);
 }
 
+// 예약은 누구에게 보내든 가려지므로 한 번에 뿌려도 된다.
+function netPushState(except) {
+  netBroadcast({ type: 'state', state: netSerializeState() }, except);
+}
+
 NET.commit = function commit() {
   if (NET.mode !== 'online' || NET.status !== 'active') return;
-  const msg = { type: 'state', state: netSerializeState() };
-  if (NET.role === 'host') netBroadcast(msg);
-  else netSendToHost(msg);
+  if (NET.role === 'host') netPushState();
+  else netSendToHost({ type: 'state', state: netSerializeState() });
 };
 
 NET.requestNewGame = function requestNewGame() {
@@ -434,9 +459,10 @@ function netHostHandle(conn, msg) {
   if (msg.type === 'state') {
     // 자리를 가진 사람만 판을 움직일 수 있다. 관전자가 보낸 상태는 버린다.
     if (!link) return;
-    // 게스트가 자기 턴을 마쳤다. 내 화면에 반영하고 나머지 게스트에게 중계한다.
+    // 게스트가 자기 턴을 마쳤다. 내 화면에 반영하고 나머지에게 중계한다.
+    // 보낸 사람의 판 정보에는 남의 예약이 가려져 있으므로 내가 알던 것으로 메운다.
     netApplyRemoteState(msg.state);
-    netBroadcast({ type: 'state', state: msg.state }, conn);
+    netPushState(conn);
     return;
   }
 
@@ -562,7 +588,7 @@ function netHostLinkGone(conn, left) {
     if (stillPlayable) {
       markPlayerLeft(gone.seat);
       netBroadcast({ type: 'playerLeft', seat: gone.seat, name: who });
-      netBroadcast({ type: 'state', state: netSerializeState() });
+      netPushState();
       chatSystem(`${who}님이 나갔습니다. 남은 사람끼리 계속합니다.`);
       render();
       renderNetPanel();
@@ -691,7 +717,7 @@ function netGuestHandle(msg) {
     netSetOpponentsFrom(msg.profiles);
     // 들어오기 전에 벌어진 한 수가 뒤늦게 날아가면 헷갈린다.
     // netApplyRemoteState가 안에서 그리므로 적용하기 전에 끊어둬야 한다.
-    if (typeof animSkipTo === 'function') animSkipTo((msg.state && msg.state.actionNo) || 0);
+    if (typeof animSkipTo === 'function') animSkipTo((msg.state && msg.state.actionNo) || 0, msg.state && msg.state.gameId);
     netApplyRemoteState(msg.state);
     if (typeof boardEnsureFresh === 'function') boardEnsureFresh();
     renderNetPanel();

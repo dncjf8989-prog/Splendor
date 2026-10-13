@@ -326,6 +326,36 @@ function reserveCard(tierIdx, idx) {
   resolveActionEnd(player);
 }
 
+// 덱 맨 위 카드를 보지 않고 예약한다. 뽑은 본인만 그 카드를 안다.
+// (원작 룰) 무엇을 쥐었는지 상대가 모르므로 숨길 패가 생긴다.
+function reserveFromDeck(tierIdx) {
+  if (G.pending.length > 0 || G.discardState || G.gameOver || G.nobleChoice || !canAct()) return;
+  const player = currentPlayer();
+  if (player.reserved.length >= 3) {
+    log('예약 카드는 최대 3장까지 가능합니다.');
+    render();
+    return;
+  }
+  const tier = G.tiers[tierIdx];
+  if (!tier || !tier.deck.length) {
+    log('그 덱에는 남은 카드가 없습니다.');
+    render();
+    return;
+  }
+  const card = tier.deck.pop();
+  player.reserved.push(card);
+  let gainedGold = false;
+  if (G.bank.gold > 0) {
+    G.bank.gold--;
+    player.tokens.gold++;
+    gainedGold = true;
+  }
+  // 카드를 실어 보내지 않는다. 진행 기록에도 무엇인지 적지 않는다.
+  noteAction('reserveDeck', G.currentIndex, null, tierIdx, null);
+  log(`${player.name}이(가) 티어${tierIdx + 1} 덱에서 뒷면으로 한 장 예약했습니다.${gainedGold ? ' (골드 +1)' : ''}`);
+  resolveActionEnd(player);
+}
+
 // ============ 턴 종료 처리 (초과 토큰 / 귀족 / 승리 판정) ============
 // 싱글 플레이에서 0번 자리는 사람, 나머지 자리는 전부 AI가 맡는다.
 function isAiSeat(index) {
@@ -626,8 +656,14 @@ function renderBoard() {
         });
       })
       .join('');
+    const canDeck =
+      !G.gameOver && G.pending.length === 0 && !G.discardState && !G.nobleChoice && canAct() &&
+      tier.deck.length > 0 && player && player.reserved.length < 3;
     container.innerHTML = `
-      <div class="tier-label">티어 ${t + 1} <span class="deck-count">(남은 덱: ${tier.deck.length})</span></div>
+      <div class="tier-label">티어 ${t + 1} <span class="deck-count">(남은 덱: ${tier.deck.length})</span>
+        <button class="deck-reserve" data-act="deckReserve:${t}" ${canDeck ? '' : 'disabled'}
+          title="덱 맨 위 카드를 보지 않고 예약합니다. 상대는 무엇인지 모릅니다.">덱에서 예약</button>
+      </div>
       <div class="tier-cards">${cardsHtml}</div>
     `;
   }
@@ -679,6 +715,10 @@ function renderPlayerPanel(p, i) {
   const bonusHtml = GEMS.map((c) => (p.bonuses[c] > 0 ? gemDot(c, p.bonuses[c]) : '')).join('');
   const reservedHtml = p.reserved
     .map((card, idx) => {
+      // 가려진 카드(h). 남의 예약은 장수만 알 수 있다.
+      // 비용이 없는 값도 뒷면으로 돌린다. 남이 보낸 판 정보가 들어오는 자리라,
+      // 모양이 깨진 값 하나에 화면 전체가 멈추면 안 된다.
+      if (!card || card.h || !card.cost) return '<div class="card-tile card-back" title="상대의 예약 카드"></div>';
       const afford = canActNow ? affordability(p, card.cost).ok : false;
       return renderCardTile(card, {
         buyable: canActNow,
@@ -923,6 +963,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const [act, a, b] = btn.dataset.act.split(':');
     if (act === 'buy') buyBoardCard(Number(a), Number(b));
     if (act === 'reserve') reserveCard(Number(a), Number(b));
+    if (act === 'deckReserve') reserveFromDeck(Number(a));
   });
 
   document.querySelectorAll('.player-column').forEach((slot) => {
