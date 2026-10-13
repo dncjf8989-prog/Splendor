@@ -321,9 +321,28 @@ function renderStatsPanel() {
   const s = statsLoad();
   const f = statsFilter;
 
+  // 숫자의 출처를 한 곳으로 모은다. 랭킹과 같은 판 기록(서버)을 쓰고,
+  // 서버에 닿지 못했을 때만 이 브라우저에 쌓인 값을 임시로 보여준다.
+  // 두 곳을 섞어 보여주던 때는 위아래 숫자가 달라 보였다.
+  const fromBoard = typeof boardMyTotals === 'function' ? boardMyTotals() : null;
   // 싱글은 더 이상 세지 않는다. 예전에 쌓인 값은 지우지 않고 보여주지만 않는다.
-  const all = statsSum(s.totals.online, f);
+  const totals = fromBoard || s.totals.online;
+  const all = statsSum(totals, f);
   const allSum = statsSummary(all);
+  const srcNote = fromBoard
+    ? '랭킹과 같은 판 기록을 셉니다'
+    : window.BOARD && BOARD.status === 'loading'
+      ? '불러오는 중입니다. 아래는 이 브라우저에 쌓인 값입니다'
+      : '랭킹 서버에 닿지 못해 이 브라우저에 쌓인 값을 보여줍니다';
+
+  // 서버 기록이 이 브라우저에 쌓인 것보다 적으면, 올라가지 못한 판이 있다는
+  // 뜻이다. 조용히 사라지면 모르므로 한 줄 띄워준다.
+  const localAll = statsSum(s.totals.online, f);
+  const missing = fromBoard ? statsSummary(localAll).total - allSum.total : 0;
+  const missNote =
+    missing > 0
+      ? `<div class="stats-warn stats-miss">이 브라우저에는 ${missing}판이 더 있습니다. 서버에 못 올라간 판일 수 있습니다. <a href="check.html" target="_blank" rel="noopener">맞춰보기</a></div>`
+      : '';
 
   const tabs = [['all', '전체'], ['2', '2인'], ['3', '3인'], ['4', '4인']]
     .map(([key, label]) => `<button class="stats-tab${f === key ? ' active' : ''}" data-stats-filter="${key}">${label}</button>`)
@@ -334,7 +353,7 @@ function renderStatsPanel() {
   if (f === 'all') {
     const chips = ['2', '3', '4']
       .map((n) => {
-        const rec = statsSum(s.totals.online, n);
+        const rec = statsSum(totals, n);
         const sum = statsSummary(rec);
         if (!sum.total) return '';
         return `<span class="stats-chip">${n}인 <strong>${sum.total}전</strong> ${rec.w}승 ${rec.l}패 ${sum.rate}%</span>`;
@@ -349,9 +368,13 @@ function renderStatsPanel() {
   if (f === '3' || f === '4') {
     oppSection = `<div class="stats-warn">${f}인 대전은 상대별 전적을 남기지 않습니다. 이긴 사람만 승, 나머지는 패로 집계합니다.</div>`;
   } else {
-    const opponents = Object.entries(s.opponents)
-      .filter(([key]) => key !== 'AI') // 예전에 쌓인 AI 기록은 더 이상 보여주지 않는다
-      .map(([key, rec]) => ({ key, name: rec.name, w: statsNum(rec.w), l: statsNum(rec.l), d: statsNum(rec.d) }))
+    const fromBoardOpp = typeof boardMyOpponents === 'function' ? boardMyOpponents() : null;
+    const rawOpp = fromBoardOpp
+      ? fromBoardOpp.map((o) => ({ key: o.key, name: o.name, w: o.w, l: o.l, d: o.d }))
+      : Object.entries(s.opponents)
+          .filter(([key]) => key !== 'AI') // 예전에 쌓인 AI 기록은 더 이상 보여주지 않는다
+          .map(([key, rec]) => ({ key, name: rec.name, w: statsNum(rec.w), l: statsNum(rec.l), d: statsNum(rec.d) }));
+    const opponents = rawOpp
       .filter((o) => o.w + o.l + o.d > 0)
       .sort((a, b) => b.w + b.l + b.d - (a.w + a.l + a.d));
 
@@ -390,6 +413,8 @@ function renderStatsPanel() {
         <span class="stats-big-num">${all.d}</span><span class="stats-big-label">무</span>
       </div>
       <div class="stats-sub">승률 ${allSum.rate}% · 온라인 대전만 셉니다 (싱글은 기록하지 않습니다)</div>
+      <div class="stats-sub stats-src${fromBoard ? '' : ' stats-src-local'}">${escapeHtml(srcNote)}</div>
+      ${missNote}
       ${byCount}
     </div>
 
@@ -400,9 +425,11 @@ function renderStatsPanel() {
     ${oppSection}
 
     <div class="stats-footer">
-      <span class="stats-note">전적은 이 브라우저에만 저장되며, 게임 결과로만 갱신됩니다. 기기나 브라우저를 바꾸면 따로 쌓입니다.
-      랭킹은 각자가 집계한 <b>전체 전적</b>입니다. 그 사람이 마지막으로 올린 시점의 기록이며, 이름 옆에 그 시점을 적었습니다.
-      한 번도 접속한 적 없는 사람은 올라온 기록이 없어 나오지 않습니다. 90일 넘게 올라오지 않은 기록도 숨깁니다.</span>
+      <span class="stats-note">이 창의 숫자는 <b>모두 같은 판 기록</b>에서 나옵니다. 판이 끝나면 참가자 전원이 같은 판을 올리므로,
+      내가 결과를 못 보고 넘어간 판도 상대가 올려 빠지지 않습니다. 그래서 위쪽 내 전적과 아래쪽 랭킹의 내 줄은 항상 같습니다.
+      기기나 브라우저를 바꿔도 같은 숫자가 보입니다.
+      랭킹 서버에 닿지 못할 때만 이 브라우저에 쌓인 값을 임시로 보여주며, 그때는 요약 밑에 그렇다고 적습니다.
+      한 번도 접속한 적 없는 사람은 올라온 기록이 없어 나오지 않습니다.</span>
     </div>`;
 }
 

@@ -701,6 +701,11 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .stats-big-num { font-size: 24px; font-weight: 800; }
 .stats-big-label { font-size: 12px; color: var(--muted); margin-right: 10px; }
 .stats-sub { margin-top: 6px; font-size: 12px; color: var(--muted); }
+/* 숫자가 어디서 온 것인지 한 줄로 밝힌다 */
+.stats-src { margin-top: 3px; font-size: 11px; opacity: 0.8; }
+.stats-src-local { color: var(--gem-red); opacity: 1; }
+.stats-miss { margin-top: 8px; font-size: 12px; }
+.stats-miss a { color: inherit; }
 .stats-w { color: var(--gem-green); }
 .stats-l { color: var(--gem-red); }
 

@@ -52,6 +52,43 @@ function boardAll() {
   return BOARD.players || [];
 }
 
+// ---- 서버에 쌓인 내 전적 ----
+// 화면에 보이는 숫자는 전부 여기서 나온다. 내 브라우저에 쌓인 값은
+// 서버에 닿지 못했을 때의 대비책으로만 쓴다. 두 곳이 어긋나 보이지 않게
+// 한 곳으로 모은 것이다.
+function boardMyTotals() {
+  if (BOARD.status !== 'ok') return null;
+  const myId = statsProfile().id;
+  const me = boardAll().find((p) => p.id === myId);
+  return me ? me.online : boardCounts(null); // 서버에 내 판이 없으면 0전
+}
+
+// 서버 판 기록에서 센 2인 상대별 전적. 랭킹과 같은 판들을 같은 방법으로 센다.
+function boardMyOpponents() {
+  if (BOARD.status !== 'ok' || !Array.isArray(BOARD.rawGames)) return null;
+  const myId = statsProfile().id;
+  const by = Object.create(null);
+  BOARD.rawGames.forEach((g) => {
+    if (!g || g.n !== 2 || !Array.isArray(g.p) || g.p.length !== 2) return;
+    const me = g.p.find((x) => x.id === myId);
+    if (!me) return;
+    const opp = g.p.find((x) => x.id !== myId);
+    if (!opp) return;
+    let rec = by[opp.id];
+    if (!rec) {
+      rec = { key: opp.id, name: opp.name || '상대', at: 0, w: 0, l: 0, d: 0 };
+      by[opp.id] = rec;
+    }
+    if (me.r === 'w' || me.r === 'l' || me.r === 'd') rec[me.r] += 1;
+    // 이름은 가장 최근 판의 것을 쓴다 (닉네임을 바꿨을 수 있다)
+    if ((g.at || 0) >= rec.at) {
+      rec.at = g.at || 0;
+      if (typeof opp.name === 'string' && opp.name.trim()) rec.name = opp.name.trim().slice(0, 12);
+    }
+  });
+  return Object.keys(by).map((k) => by[k]);
+}
+
 // ---- 순위 매기기 ----
 function boardRowOf(p, filter) {
   const rec = statsSum(p.online, filter);
@@ -169,6 +206,7 @@ function boardRefresh() {
   return dbLoadGames()
     .then((games) => {
       BOARD.players = dbTally(games);
+      BOARD.rawGames = games; // 상대별 전적은 판 하나하나를 봐야 셀 수 있다
       BOARD.games = games.length;
       BOARD.status = 'ok';
       BOARD.at = Date.now();
