@@ -349,8 +349,44 @@ NET.requestNewGame = function requestNewGame() {
     render();
     return;
   }
+  if (!netRoomReady()) {
+    log('아직 인원이 다 모이지 않았습니다.');
+    renderNetPanel();
+    return;
+  }
+  // 두고 있는 판이 있는데 다시 시작하는 것은 나가는 것과 같다. 지고 있을 때
+  // 눌러서 판을 없던 일로 만드는 길을 막는다.
+  if (netLeavingCostsGame()) {
+    askConfirm({
+      title: '지금 다시 시작하시겠습니까?',
+      body: '진행 중인 판은 패배로 기록됩니다. 나가기와 같습니다.',
+      okLabel: '다시 시작 (패배 처리)',
+      onOk: netHostRestartGame,
+    });
+    return;
+  }
   netHostStartGame();
 };
+
+// 판 도중의 재대결. 진행 중이던 판은 방장의 패배, 나머지는 부전승으로 남긴다.
+// 새 판을 깔면 판 번호가 바뀌어 더는 기록할 수 없으므로, 게스트들에게 먼저
+// 알리고 내 것도 기록한 다음에 netHostStartGame을 부른다.
+function netHostRestartGame() {
+  if (NET.role !== 'host' || !netRoomReady()) {
+    log('아직 인원이 다 모이지 않았습니다.');
+    renderNetPanel();
+    return;
+  }
+  if (!netLeavingCostsGame()) {
+    netHostStartGame();
+    return;
+  }
+  const me = netMyProfile();
+  netBroadcast({ type: 'hostRestart', name: me.name, id: me.id });
+  statsRecordForfeit(true);
+  chatSystem(`${me.name}님이 판을 다시 시작했습니다. 두던 판은 ${me.name}님의 패배로 기록했습니다.`);
+  netHostStartGame();
+}
 
 // ============ 호스트 ============
 function netCreateRoom() {
@@ -758,6 +794,19 @@ function netGuestHandle(msg) {
     chatSystem(`${msg.name || '참가자'}님이 나갔습니다. 남은 사람끼리 계속합니다.`);
     render();
     renderNetPanel();
+    return;
+  }
+
+  if (msg.type === 'hostRestart') {
+    // 방장이 두던 판을 접고 다시 시작했다. 뒤따라 오는 init이 새 판을 깔기
+    // 전에 기록해 둔다. 방장은 패, 나머지는 부전승이다.
+    const who = msg.name || '방장';
+    if (netIsSpectator()) {
+      chatSystem(`${who}님이 판을 다시 시작했습니다.`);
+    } else {
+      statsRecordWalkover(typeof msg.id === 'string' ? msg.id : null, true);
+      chatSystem(`${who}님이 판을 다시 시작했습니다. 두던 판은 부전승으로 기록했습니다.`);
+    }
     return;
   }
 

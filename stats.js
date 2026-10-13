@@ -181,7 +181,9 @@ function maybeRecordResult() {
 
 // 대전이 중도에 끝난 경우의 기록. 나간 사람은 패('l'), 남은 사람은 승('w').
 // 이미 끝난 판은 정상 집계(maybeRecordResult)를 따르므로 건드리지 않는다.
-function statsRecordAbandoned(result, leaverId) {
+// force: 남은 사람끼리 이어가는 판이 아니라 판 자체가 통째로 없어지는 경우
+// (방장이 대전 중에 재대결을 누른 경우). 서버 기록을 미루지 않는다.
+function statsRecordAbandoned(result, leaverId, force) {
   if (!G || !G.gameId || G.gameOver) return false;
   if (!window.NET || NET.mode !== 'online') return false;
   // 관전자는 둔 것이 없으므로 이겼다 졌다 할 것도 없다.
@@ -209,7 +211,8 @@ function statsRecordAbandoned(result, leaverId) {
   // 중도에 끝난 판도 남긴다. 나간 사람이 누구인지는 부른 쪽이 알려준다.
   // 단, 남은 사람끼리 계속하는 판이면 여기서 쓰지 않는다. 판 기록은 한 번 쓰면
   // 고칠 수 없으므로, 먼저 써버리면 끝까지 둔 진짜 결과가 묻힌다.
-  const continues = typeof gameContinuesWithoutMe === 'function' && gameContinuesWithoutMe();
+  const continues =
+    !force && typeof gameContinuesWithoutMe === 'function' && gameContinuesWithoutMe();
   if (!continues && typeof dbGameRecordAbandoned === 'function') {
     boardSaveGame(dbGameRecordAbandoned(leaverId));
   }
@@ -218,13 +221,13 @@ function statsRecordAbandoned(result, leaverId) {
 }
 
 // 내가 대전 도중에 나갔다 -> 패
-function statsRecordForfeit() {
-  return statsRecordAbandoned('l', statsProfile().id);
+function statsRecordForfeit(force) {
+  return statsRecordAbandoned('l', statsProfile().id, force);
 }
 
 // 상대가 대전 도중에 나갔다 -> 부전승
-function statsRecordWalkover(leaverId) {
-  return statsRecordAbandoned('w', leaverId);
+function statsRecordWalkover(leaverId, force) {
+  return statsRecordAbandoned('w', leaverId, force);
 }
 
 // ============ 렌더링 ============

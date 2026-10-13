@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>빠진 판 넣기 - 스플렌더 라이트</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=20261013c">
+<style>
+  #wrap { max-width: 720px; margin: 0 auto; padding: 24px 16px 60px; }
+  #wrap h1 { font-size: 20px; margin: 0 0 6px; }
+  .lead { color: var(--muted); font-size: 13px; line-height: 1.7; margin-bottom: 20px; }
+  .card {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .card h2 { font-size: 13px; color: var(--muted); margin: 0 0 10px; font-weight: 500; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  td, th { padding: 7px 4px; border-bottom: 1px solid var(--border); text-align: left; }
+  th { font-size: 11px; color: var(--muted); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  .win { color: var(--gem-green); font-weight: 700; }
+  .lose { color: var(--gem-red); }
+  .bad { color: var(--gem-red); }
+  code { font-size: 11px; color: var(--muted); word-break: break-all; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .row label.lbl { font-size: 12px; color: var(--muted); min-width: 52px; }
+  select { font-size: 14px; padding: 7px 10px; }
+  .pick { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+  #preview { font-size: 14px; line-height: 1.8; }
+  #go { font-size: 14px; padding: 10px 22px; font-weight: 700; }
+  #out { margin-top: 12px; font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
+  .backlink { display: inline-block; margin-top: 18px; font-size: 13px; }
+  .warn { font-size: 12px; color: var(--muted); line-height: 1.7; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>빠진 판 넣기</h1>
+  <p class="lead">
+    대전은 했는데 전적에 안 올라간 1:1 판을 하나씩 손으로 넣습니다.
+    <b>게임을 하던 바로 그 브라우저에서</b> 열어야 기기 ID가 맞습니다.<br>
+    넣은 판은 랭킹과 내 전적에 함께 반영되고, <b>한 번 올린 판은 지울 수 없습니다.</b>
+  </p>
+
+  <div class="card">
+    <h2>이 브라우저에서 찾은 사람들</h2>
+    <div id="who">확인 중...</div>
+  </div>
+
+  <div class="card">
+    <h2>넣을 판</h2>
+    <div class="row">
+      <label class="lbl" for="opp">상대</label>
+      <select id="opp"></select>
+    </div>
+    <div class="row">
+      <span class="lbl">결과</span>
+      <label class="pick"><input type="radio" name="res" value="w" checked> 내가 이김</label>
+      <label class="pick"><input type="radio" name="res" value="l"> 내가 짐</label>
+    </div>
+    <div class="row">
+      <label class="lbl" for="when">시각</label>
+      <input type="datetime-local" id="when">
+    </div>
+    <div id="preview"></div>
+  </div>
+
+  <button id="go" disabled>이 판 넣기</button>
+  <div id="out"></div>
+
+  <div class="card" id="donecard" hidden>
+    <h2>이 브라우저에서 넣은 판</h2>
+    <div id="done"></div>
+  </div>
+
+  <p class="warn">
+    같은 판을 두 번 넣으면 두 판으로 셉니다. 아래 목록에 이미 있는지 보고 눌러 주세요.<br>
+    상대 쪽 브라우저에서는 이 판이 "내 전적"에 안 보일 수 있습니다. 랭킹(서버 기록)에는 양쪽 다 반영됩니다.
+  </p>
+
+  <a class="backlink" href="./">← 게임으로 돌아가기</a>
+</div>
+
+<script src="db.js?v=20261013c"></script>
+<script>
+'use strict';
+
+var PROFILE_KEY = 'splendorLiteProfile';
+var STATS_KEY = 'splendorLiteStats';
+var ADDED_KEY = 'splendorLiteAddedGames';
+var STATS_VERSION = 3;
+
+function readJson(key, fallback) {
+  try {
+    var raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
+
+function writeJson(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+// 상대의 기기 ID는 내 상대별 전적에 들어 있다.
+function findPeople() {
+  var prof = readJson(PROFILE_KEY, null);
+  var st = readJson(STATS_KEY, null);
+  var me = prof && prof.id ? { id: prof.id, name: (prof.name || '나').slice(0, 12) } : null;
+  var opps = [];
+  if (st && st.opponents) {
+    Object.keys(st.opponents).forEach(function (key) {
+      if (key === 'AI') return;
+      var rec = st.opponents[key];
+      if (rec && rec.name) opps.push({ id: key, name: rec.name, last: rec.last || 0 });
+    });
+  }
+  opps.sort(function (a, b) { return b.last - a.last; });
+  return { me: me, opps: opps };
+}
+
+var people = findPeople();
+var whoEl = document.getElementById('who');
+var oppEl = document.getElementById('opp');
+var whenEl = document.getElementById('when');
+var prevEl = document.getElementById('preview');
+var goEl = document.getElementById('go');
+var outEl = document.getElementById('out');
+
+function localInput(ms) {
+  var d = new Date(ms - new Date().getTimezoneOffset() * 60000);
+  return d.toISOString().slice(0, 16);
+}
+
+if (!people.me) {
+  whoEl.innerHTML = '<span class="bad">이 브라우저에서 전적을 찾지 못했습니다. 게임을 하던 브라우저에서 열어 주세요.</span>';
+} else if (!people.opps.length) {
+  whoEl.innerHTML = '<b>' + esc(people.me.name) + '</b> (나) 외에 상대를 찾지 못했습니다. 1:1 대전을 한 적이 있는 브라우저에서 열어 주세요.';
+} else {
+  var rows = '<table><tr><th>이름</th><th>기기 ID</th></tr>';
+  rows += '<tr><td><b>' + esc(people.me.name) + '</b> (나)</td><td><code>' + esc(people.me.id) + '</code></td></tr>';
+  people.opps.forEach(function (o) {
+    rows += '<tr><td>' + esc(o.name) + '</td><td><code>' + esc(o.id) + '</code></td></tr>';
+  });
+  whoEl.innerHTML = rows + '</table>';
+
+  people.opps.forEach(function (o) {
+    var op = document.createElement('option');
+    op.value = o.id;
+    op.textContent = o.name;
+    oppEl.appendChild(op);
+  });
+  whenEl.value = localInput(Date.now());
+  goEl.disabled = false;
+}
+
+function currentPick() {
+  var oppId = oppEl.value;
+  var opp = people.opps.filter(function (o) { return o.id === oppId; })[0];
+  var res = document.querySelector('input[name="res"]:checked').value;
+  var at = whenEl.value ? new Date(whenEl.value).getTime() : Date.now();
+  if (!Number.isFinite(at)) at = Date.now();
+  return { opp: opp, res: res, at: at };
+}
+
+function drawPreview() {
+  if (!people.me || !people.opps.length) { prevEl.textContent = ''; return; }
+  var pick = currentPick();
+  if (!pick.opp) { prevEl.textContent = ''; return; }
+  var meCls = pick.res === 'w' ? 'win' : 'lose';
+  var opCls = pick.res === 'w' ? 'lose' : 'win';
+  prevEl.innerHTML =
+    '2인 · <span class="' + meCls + '">' + esc(people.me.name) + (pick.res === 'w' ? ' 승' : ' 패') + '</span>' +
+    ' · <span class="' + opCls + '">' + esc(pick.opp.name) + (pick.res === 'w' ? ' 패' : ' 승') + '</span>';
+}
+
+oppEl.addEventListener('change', drawPreview);
+whenEl.addEventListener('change', drawPreview);
+Array.prototype.forEach.call(document.querySelectorAll('input[name="res"]'), function (r) {
+  r.addEventListener('change', drawPreview);
+});
+drawPreview();
+
+function drawDone() {
+  var list = readJson(ADDED_KEY, []);
+  if (!Array.isArray(list) || !list.length) return;
+  var t = '<table><tr><th>넣은 때</th><th>판</th></tr>';
+  list.slice().reverse().forEach(function (x) {
+    t += '<tr><td>' + esc(new Date(x.addedAt || x.at).toLocaleString('ko-KR')) + '</td><td>' + esc(x.label || '') + '</td></tr>';
+  });
+  document.getElementById('done').innerHTML = t + '</table>';
+  document.getElementById('donecard').hidden = false;
+}
+drawDone();
+
+// 내 쪽 localStorage 전적에도 같이 더한다. 랭킹(서버)만 올리면
+// 게임 안 "내 전적"과 숫자가 어긋난다.
+function bumpLocalStats(res) {
+  var s = readJson(STATS_KEY, null);
+  if (!s || s.version !== STATS_VERSION || !s.totals || !s.opponents) return false;
+  if (!s.totals.online) s.totals.online = {};
+  if (!s.totals.online['2']) s.totals.online['2'] = { w: 0, l: 0, d: 0 };
+  s.totals.online['2'][res] += 1;
+  var pick = currentPick();
+  var rec = s.opponents[pick.opp.id];
+  if (!rec) { rec = { name: pick.opp.name, last: 0, w: 0, l: 0, d: 0 }; s.opponents[pick.opp.id] = rec; }
+  rec[res] += 1;
+  rec.last = Math.max(rec.last || 0, pick.at);
+  writeJson(STATS_KEY, s);
+  return true;
+}
+
+goEl.addEventListener('click', function () {
+  var pick = currentPick();
+  if (!people.me || !pick.opp) return;
+  var label = people.me.name + (pick.res === 'w' ? ' 승 / ' : ' 패 / ') + pick.opp.name + (pick.res === 'w' ? ' 패' : ' 승');
+  if (!window.confirm('이 판을 넣습니다. 되돌릴 수 없습니다.\n\n2인 · ' + label)) return;
+
+  goEl.disabled = true;
+  outEl.textContent = '넣는 중...';
+  var key = 'g-add-' + pick.at.toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+  var body = {
+    at: pick.at,
+    n: 2,
+    p: [
+      { id: people.me.id, name: people.me.name.slice(0, 12), r: pick.res },
+      { id: pick.opp.id, name: pick.opp.name.slice(0, 12), r: pick.res === 'w' ? 'l' : 'w' },
+    ],
+  };
+
+  fetch(DB_URL + '/games/' + key + '.json', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then(function (res) {
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var list = readJson(ADDED_KEY, []);
+    if (!Array.isArray(list)) list = [];
+    list.push({ key: key, at: pick.at, addedAt: Date.now(), label: '2인 · ' + label });
+    writeJson(ADDED_KEY, list);
+    var localOk = bumpLocalStats(pick.res);
+    outEl.textContent =
+      '넣었습니다. (' + label + ')\n' +
+      (localOk ? '내 전적에도 더했습니다.\n' : '랭킹에는 올렸지만 이 브라우저의 "내 전적"은 손대지 못했습니다.\n') +
+      '\n게임으로 돌아가 전적 창에서 새로고침을 눌러 확인해 주세요.';
+    drawDone();
+    goEl.disabled = false;
+  }).catch(function (e) {
+    outEl.textContent = '실패했습니다. 랭킹 서버에 닿지 못했을 수 있습니다. (' + e.message + ')\n아무것도 기록되지 않았으니 다시 눌러 주세요.';
+    goEl.disabled = false;
+  });
+});
+</script>
+</body>
+</html>
