@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>전적 맞춰보기 - 스플렌더 라이트</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=20261013d">
+<style>
+  #wrap { max-width: 860px; margin: 0 auto; padding: 24px 16px 60px; }
+  #wrap h1 { font-size: 20px; margin: 0 0 6px; }
+  .lead { color: var(--muted); font-size: 13px; line-height: 1.7; margin-bottom: 20px; }
+  .card { border: 1px solid var(--border); background: var(--panel); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  .card h2 { font-size: 13px; color: var(--muted); margin: 0 0 10px; font-weight: 500; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  td, th { padding: 7px 5px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+  th { font-size: 11px; color: var(--muted); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; }
+  .win { color: var(--gem-green); font-weight: 700; }
+  .lose { color: var(--gem-red); }
+  .bad { color: var(--gem-red); font-weight: 700; }
+  .ok { color: var(--gem-green); }
+  .dim { color: var(--muted); }
+  code { font-size: 11px; color: var(--muted); word-break: break-all; }
+  .pill { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+  .scroll { overflow-x: auto; }
+  #copy { font-size: 13px; padding: 8px 16px; }
+  #raw { width: 100%; height: 160px; margin-top: 10px; font-size: 11px; font-family: monospace; }
+  .backlink { display: inline-block; margin-top: 18px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>전적 맞춰보기</h1>
+  <p class="lead">
+    위쪽 <b>내 전적</b>은 <b>이 브라우저</b>에 쌓인 숫자이고, 아래쪽 <b>랭킹</b>은 <b>서버에 올라간 판 기록</b>을 센 것입니다.
+    두 곳은 따로 쌓이기 때문에 어긋날 수 있습니다. 어느 판이 어긋났는지 여기서 봅니다.<br>
+    <b>게임을 하던 바로 그 브라우저에서</b> 열어 주세요.
+  </p>
+
+  <div class="card">
+    <h2>나</h2>
+    <div id="me">확인 중...</div>
+  </div>
+
+  <div class="card">
+    <h2>인원별 비교 — 내 전적(이 브라우저) vs 랭킹(서버)</h2>
+    <div class="scroll"><div id="cmp">서버에서 판 기록을 받는 중...</div></div>
+    <div id="verdict" style="margin-top:12px;font-size:13px;line-height:1.8"></div>
+  </div>
+
+  <div class="card">
+    <h2>2인 상대별 비교</h2>
+    <div class="scroll"><div id="oppcmp">확인 중...</div></div>
+  </div>
+
+  <div class="card">
+    <h2>서버에 있는 내 판 전체 <span id="cnt" class="pill"></span></h2>
+    <div class="scroll"><div id="games">확인 중...</div></div>
+  </div>
+
+  <button id="copy">진단 내용 복사</button>
+  <textarea id="raw" readonly></textarea>
+
+  <a class="backlink" href="./">← 게임으로 돌아가기</a>
+</div>
+
+<script src="db.js?v=20261013d"></script>
+<script>
+'use strict';
+
+var PROFILE_KEY = 'splendorLiteProfile';
+var STATS_KEY = 'splendorLiteStats';
+
+function readJson(key, fallback) {
+  try { var raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch (e) { return fallback; }
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function blank() { return { w: 0, l: 0, d: 0 }; }
+function tot(r) { return r.w + r.l + r.d; }
+function fmt(r) { return tot(r) + '전 ' + r.w + '승 ' + r.l + '패' + (r.d ? ' ' + r.d + '무' : ''); }
+
+var prof = readJson(PROFILE_KEY, null);
+var st = readJson(STATS_KEY, null);
+var meEl = document.getElementById('me');
+var lines = [];
+function say(s) { lines.push(s); }
+
+if (!prof || !prof.id) {
+  meEl.innerHTML = '<span class="bad">이 브라우저에서 전적을 찾지 못했습니다. 게임을 하던 브라우저에서 열어 주세요.</span>';
+} else {
+  meEl.innerHTML = '<b>' + esc(prof.name || '이름 없음') + '</b> &nbsp; <code>' + esc(prof.id) + '</code>' +
+    (st ? ' &nbsp; <span class="pill">전적 판본 v' + esc(String(st.version)) + '</span>' : ' <span class="bad">저장된 전적 없음</span>');
+  say('나: ' + (prof.name || '이름 없음') + ' / ' + prof.id + ' / stats v' + (st && st.version));
+}
+
+// 이 브라우저에 쌓인 온라인 전적
+var local = { '2': blank(), '3': blank(), '4': blank() };
+if (st && st.totals && st.totals.online) {
+  ['2', '3', '4'].forEach(function (n) {
+    var r = st.totals.online[n];
+    if (r) local[n] = { w: r.w || 0, l: r.l || 0, d: r.d || 0 };
+  });
+}
+
+function sum(map) {
+  var o = blank();
+  ['2', '3', '4'].forEach(function (n) { o.w += map[n].w; o.l += map[n].l; o.d += map[n].d; });
+  return o;
+}
+
+if (!prof || !prof.id) {
+  document.getElementById('cmp').innerHTML = '<span class="bad">비교할 수 없습니다.</span>';
+} else {
+  dbLoadGames().then(render).catch(function (e) {
+    document.getElementById('cmp').innerHTML =
+      '<span class="bad">서버에서 판 기록을 받지 못했습니다. (' + esc(e && e.message ? e.message : String(e)) + ')</span>';
+  });
+}
+
+function render(games) {
+  var mine = games.filter(function (g) {
+    return g.p.some(function (x) { return x.id === prof.id; });
+  });
+  mine.sort(function (a, b) { return (b.at || 0) - (a.at || 0); });
+
+  var server = { '2': blank(), '3': blank(), '4': blank() };
+  var oppServer = {};
+  mine.forEach(function (g) {
+    var me = g.p.filter(function (x) { return x.id === prof.id; })[0];
+    var n = String(g.n);
+    if (!server[n]) return;
+    server[n][me.r] += 1;
+    if (g.n === 2) {
+      var opp = g.p.filter(function (x) { return x.id !== prof.id; })[0];
+      if (opp) {
+        if (!oppServer[opp.id]) oppServer[opp.id] = { name: opp.name || '상대', w: 0, l: 0, d: 0 };
+        oppServer[opp.id][me.r] += 1;
+        oppServer[opp.id].name = opp.name || oppServer[opp.id].name;
+      }
+    }
+  });
+
+  // ---- 인원별 비교표 ----
+  var t = '<table><tr><th>인원</th><th>내 전적 (이 브라우저)</th><th>랭킹 (서버)</th><th>차이</th></tr>';
+  var anyDiff = false;
+  ['2', '3', '4'].forEach(function (n) {
+    var L = local[n], S = server[n];
+    var d = { w: S.w - L.w, l: S.l - L.l, d: S.d - L.d };
+    var same = !d.w && !d.l && !d.d;
+    if (!same) anyDiff = true;
+    t += '<tr><td>' + n + '인</td><td>' + fmt(L) + '</td><td>' + fmt(S) + '</td><td class="' + (same ? 'ok' : 'bad') + '">' +
+      (same ? '같음' : diffText(d)) + '</td></tr>';
+    say(n + '인 | 내전적 ' + fmt(L) + ' | 서버 ' + fmt(S) + ' | ' + (same ? '같음' : diffText(d)));
+  });
+  var LS = sum(local), SS = sum(server);
+  var dd = { w: SS.w - LS.w, l: SS.l - LS.l, d: SS.d - LS.d };
+  t += '<tr><td><b>합계</b></td><td><b>' + fmt(LS) + '</b></td><td><b>' + fmt(SS) + '</b></td><td class="' +
+    (tot(dd) === 0 && !dd.w && !dd.l && !dd.d ? 'ok' : 'bad') + '"><b>' +
+    (!dd.w && !dd.l && !dd.d ? '같음' : diffText(dd)) + '</b></td></tr></table>';
+  document.getElementById('cmp').innerHTML = t;
+  say('합계 | 내전적 ' + fmt(LS) + ' | 서버 ' + fmt(SS) + ' | ' + (!dd.w && !dd.l && !dd.d ? '같음' : diffText(dd)));
+
+  var v = document.getElementById('verdict');
+  if (!anyDiff) {
+    v.innerHTML = '<span class="ok">두 곳이 정확히 같습니다.</span>';
+  } else {
+    var msg = '';
+    if (SS.w + SS.l + SS.d > LS.w + LS.l + LS.d) {
+      msg = '<b>서버에 더 많습니다.</b> 그 판들은 상대 쪽 브라우저가 올렸지만, 내 브라우저는 결과를 못 보고 넘어간 판입니다. ' +
+        '보통 판이 끝나는 순간에 새로고침했거나, 창을 닫았거나, 연결이 잠깐 끊겼을 때 이렇게 됩니다. ' +
+        '<b>랭킹 쪽(아래 숫자)이 맞는 값입니다.</b>';
+    } else if (SS.w + SS.l + SS.d < LS.w + LS.l + LS.d) {
+      msg = '<b>내 브라우저에 더 많습니다.</b> 서버에 못 올라간 판이 있습니다. ' +
+        '랭킹 서버에 닿지 못한 채 판이 끝났을 때 이렇게 됩니다. ' +
+        '<a href="addgame.html">빠진 판 넣기</a>에서 손으로 채울 수 있습니다.';
+    } else {
+      msg = '<b>판수는 같은데 승패가 다릅니다.</b> 어느 판의 결과가 양쪽에서 다르게 적힌 경우입니다. 아래 목록을 확인해 주세요.';
+    }
+    v.innerHTML = msg;
+    say('판정: ' + msg.replace(/<[^>]+>/g, ''));
+  }
+
+  // ---- 2인 상대별 ----
+  var localOpp = (st && st.opponents) || {};
+  var keys = {};
+  Object.keys(localOpp).forEach(function (k) { if (k !== 'AI') keys[k] = 1; });
+  Object.keys(oppServer).forEach(function (k) { keys[k] = 1; });
+  var ks = Object.keys(keys);
+  if (!ks.length) {
+    document.getElementById('oppcmp').innerHTML = '<span class="dim">1:1 기록이 없습니다.</span>';
+  } else {
+    var o = '<table><tr><th>상대</th><th>내 전적</th><th>랭킹</th><th>차이</th></tr>';
+    ks.forEach(function (k) {
+      var L = localOpp[k] ? { w: localOpp[k].w || 0, l: localOpp[k].l || 0, d: localOpp[k].d || 0 } : blank();
+      var S = oppServer[k] || blank();
+      var name = (oppServer[k] && oppServer[k].name) || (localOpp[k] && localOpp[k].name) || '이름 없음';
+      var d = { w: S.w - L.w, l: S.l - L.l, d: S.d - L.d };
+      var same = !d.w && !d.l && !d.d;
+      o += '<tr><td>' + esc(name) + '<br><code>' + esc(k) + '</code></td><td>' + fmt(L) + '</td><td>' + fmt(S) +
+        '</td><td class="' + (same ? 'ok' : 'bad') + '">' + (same ? '같음' : diffText(d)) + '</td></tr>';
+      say('상대 ' + name + ' | 내전적 ' + fmt(L) + ' | 서버 ' + fmt(S) + ' | ' + (same ? '같음' : diffText(d)));
+    });
+    document.getElementById('oppcmp').innerHTML = o + '</table>';
+  }
+
+  // ---- 판 목록 ----
+  document.getElementById('cnt').textContent = mine.length + '판';
+  if (!mine.length) {
+    document.getElementById('games').innerHTML = '<span class="dim">서버에 내 판이 없습니다.</span>';
+  } else {
+    var g = '<table><tr><th>때</th><th>인원</th><th>내 결과</th><th>상대</th><th>점수</th><th></th></tr>';
+    mine.forEach(function (x) {
+      var me = x.p.filter(function (y) { return y.id === prof.id; })[0];
+      var others = x.p.filter(function (y) { return y.id !== prof.id; })
+        .map(function (y) { return esc(y.name || '?') + (y.r === 'w' ? ' 승' : y.r === 'l' ? ' 패' : ' 무'); }).join(', ');
+      var when = x.at ? new Date(x.at).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '?';
+      var sc = x.p.map(function (y) { return y.s == null ? '-' : y.s; }).join(' : ');
+      g += '<tr><td class="dim">' + esc(when) + '</td><td>' + x.n + '인</td>' +
+        '<td class="' + (me.r === 'w' ? 'win' : 'lose') + '">' + (me.r === 'w' ? '승' : me.r === 'l' ? '패' : '무') + '</td>' +
+        '<td>' + others + '</td><td class="dim">' + esc(sc) + '</td>' +
+        '<td>' + (x.ab ? '<span class="pill">중도 종료</span>' : '') + '</td></tr>';
+    });
+    document.getElementById('games').innerHTML = g + '</table>';
+    say('');
+    say('--- 서버에 있는 내 판 ' + mine.length + '개 (최신순) ---');
+    mine.forEach(function (x) {
+      say([x.at ? new Date(x.at).toISOString().slice(0, 16).replace('T', ' ') : '?', x.n + '인',
+        x.p.map(function (y) { return (y.name || '?') + ':' + y.r + (y.s == null ? '' : '(' + y.s + ')'); }).join(' / '),
+        x.ab ? '중도' : ''].join(' | '));
+    });
+  }
+
+  document.getElementById('raw').value = lines.join('\n');
+}
+
+function diffText(d) {
+  var parts = [];
+  if (d.w) parts.push('승 ' + (d.w > 0 ? '+' : '') + d.w);
+  if (d.l) parts.push('패 ' + (d.l > 0 ? '+' : '') + d.l);
+  if (d.d) parts.push('무 ' + (d.d > 0 ? '+' : '') + d.d);
+  return parts.join(', ') + ' (서버 기준)';
+}
+
+document.getElementById('copy').addEventListener('click', function () {
+  var ta = document.getElementById('raw');
+  ta.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  if (navigator.clipboard) { navigator.clipboard.writeText(ta.value).catch(function () {}); }
+  this.textContent = '복사했습니다';
+  var self = this;
+  setTimeout(function () { self.textContent = '진단 내용 복사'; }, 1500);
+});
+</script>
+</body>
+</html>
