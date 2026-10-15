@@ -26,7 +26,15 @@ function chatClean(text) {
     .slice(0, CHAT.maxLen);
 }
 
+// 채팅 줄에 붙는 "시:분" (이 기기의 시간대, 24시간제)
+function chatTimeText(at) {
+  const d = new Date(Number.isFinite(at) ? at : Date.now());
+  const pad = (n) => (n < 10 ? '0' + n : String(n));
+  return pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
 function chatAppend(entry) {
+  if (!entry.at) entry.at = Date.now();
   CHAT.messages.push(entry);
   if (CHAT.messages.length > CHAT.max) CHAT.messages.splice(0, CHAT.messages.length - CHAT.max);
   renderChat();
@@ -89,7 +97,7 @@ function renderChat() {
       // 관전자끼리는 자리가 둘 다 null이라 서로를 "나"로 볼 수 있다. 자리가 있을 때만 내 줄로 본다.
       const mine = mySeat != null && m.seat === mySeat ? ' chat-mine' : '';
       const tag = m.watch ? '<span class="chat-watch">관전</span>' : '';
-      return `<li class="chat-line${mine}">${tag}<span class="chat-name">${escapeHtml(m.name)}</span>${escapeHtml(m.text)}</li>`;
+      return `<li class="chat-line${mine}">${tag}<span class="chat-name">${escapeHtml(m.name)}</span>${escapeHtml(m.text)}<span class="chat-time">${chatTimeText(m.at)}</span></li>`;
     })
     .join('');
   listEl.scrollTop = listEl.scrollHeight;

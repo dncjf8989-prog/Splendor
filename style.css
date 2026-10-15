@@ -781,6 +781,14 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   margin-right: 5px;
 }
 .chat-mine .chat-name { color: var(--text); }
+.chat-time {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 
 #chatForm { display: flex; gap: 6px; }
 #chatInput {
