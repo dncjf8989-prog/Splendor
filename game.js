@@ -103,6 +103,9 @@ function newGame(playerCount, startIndex) {
     // 마지막으로 누가 무엇을 가져갔는지. 화면에서 카드가 날아가는 데 쓴다.
     // 온라인에서는 상태와 함께 전달되어 상대 화면에서도 똑같이 보인다.
     actionNo: 0,
+    // 판 정보가 바뀔 때마다 1씩 오른다. 온라인에서 양쪽이 같은 시점을 보고 있는지
+    // 견주는 데 쓴다.
+    rev: 0,
     lastAction: null,
     currentIndex: first,
     pending: [],

@@ -20,6 +20,8 @@ const RELAY_URLS = [
 const RELAY_ROOT = 'splendor-lite-v1';
 const RELAY_CONNECT_MS = 8000; // 브로커 한 곳당 대기 시간
 const RELAY_HELLO_MS = 9000; // 방장이 응답할 때까지 기다리는 시간
+const RELAY_KEEP_MS = 3000; // 끊긴 브로커를 다시 붙여 보는 주기
+const RELAY_KEEP_MAX_WAIT = 10; // 계속 실패하는 브로커는 최대 이 주기 수(=30초)에 한 번만 시도한다
 
 function relayAvailable() {
   return typeof mqtt !== 'undefined' && !!mqtt.connect;
@@ -77,6 +79,14 @@ function RelayPeer(wantId) {
   this._opened = false;
   this._seen = Object.create(null); // 여러 브로커로 같은 메시지가 오므로 걸러낸다
   this._seenOrder = [];
+  // 브로커별 연결 상태. 한 곳이 끊겨도 다시 붙이지 않으면 시간이 갈수록 붙어 있는
+  // 브로커가 줄어든다. 방장과 게스트가 서로 다른 곳에만 남으면 메시지가 서로에게
+  // 닿지 못하는데 양쪽 다 "연결됨"으로 보인다.
+  this._live = Object.create(null); // url -> 연결 중이거나 연결된 클라이언트
+  this._fails = Object.create(null); // url -> 연달아 실패한 횟수
+  this._nextTry = Object.create(null); // url -> 이 주기 번호가 되기 전에는 다시 시도하지 않는다
+  this._tick = 0;
+  this._keepTimer = null;
 
   this.on = (evt, fn) => {
     if (self._h[evt]) self._h[evt].push(fn);
@@ -195,6 +205,7 @@ function RelayPeer(wantId) {
       self._clients.push(client);
       if (!self._opened) {
         self._opened = true;
+        self._keepTimer = setInterval(self._keepBrokers, RELAY_KEEP_MS);
         self._fire('open', self.id);
       }
       return;
@@ -202,8 +213,9 @@ function RelayPeer(wantId) {
     if (self._pending <= 0 && !self._opened) self._fire('error', { type: 'server-error' });
   };
 
-  this._connectBroker = (url) => {
-    if (self.destroyed) return;
+  // isRetry: 처음 붙을 때가 아니라, 이미 열린 뒤에 끊긴 브로커를 다시 붙이는 경우
+  this._connectBroker = (url, isRetry) => {
+    if (self.destroyed || self._live[url]) return; // 이미 붙어 있거나 붙는 중이다
     let settled = false;
     let client;
     try {
@@ -214,9 +226,11 @@ function RelayPeer(wantId) {
         clean: true,
       });
     } catch (e) {
-      self._brokerSettled(null);
+      self._fails[url] = (self._fails[url] || 0) + 1;
+      if (!isRetry) self._brokerSettled(null);
       return;
     }
+    self._live[url] = client;
 
     const fail = () => {
       if (settled) return;
@@ -227,7 +241,9 @@ function RelayPeer(wantId) {
       } catch (e) {
         /* noop */
       }
-      self._brokerSettled(null);
+      if (self._live[url] === client) delete self._live[url];
+      self._fails[url] = (self._fails[url] || 0) + 1;
+      if (!isRetry) self._brokerSettled(null);
     };
     const timer = setTimeout(fail, RELAY_CONNECT_MS + 1000);
 
@@ -241,7 +257,20 @@ function RelayPeer(wantId) {
         }
         settled = true;
         clearTimeout(timer);
-        self._brokerSettled(client);
+        self._fails[url] = 0;
+        if (isRetry) {
+          if (self.destroyed) {
+            try {
+              client.end(true);
+            } catch (e) {
+              /* noop */
+            }
+            return;
+          }
+          self._clients.push(client);
+        } else {
+          self._brokerSettled(client);
+        }
       });
     });
     client.on('error', fail);
@@ -251,7 +280,22 @@ function RelayPeer(wantId) {
       const i = self._clients.indexOf(client);
       if (i < 0) return;
       self._clients.splice(i, 1);
+      if (self._live[url] === client) delete self._live[url];
       if (!self._clients.length && !self.destroyed) self._fire('disconnected');
+    });
+  };
+
+  // 끊어진 브로커를 주기적으로 다시 붙인다. 한 곳이 계속 막혀 있어도 시간을 늘려
+  // 가며 느리게 두드릴 뿐 다른 곳에는 영향이 없다. 한 번이라도 열린 뒤에만 돈다.
+  this._keepBrokers = () => {
+    if (self.destroyed) return;
+    self._tick += 1;
+    RELAY_URLS.forEach((url) => {
+      if (self._live[url]) return;
+      if ((self._nextTry[url] || 0) > self._tick) return;
+      const fails = self._fails[url] || 0;
+      self._nextTry[url] = self._tick + Math.min(RELAY_KEEP_MAX_WAIT, Math.pow(2, Math.max(0, fails - 1)));
+      self._connectBroker(url, true);
     });
   };
 
@@ -293,6 +337,17 @@ function RelayPeer(wantId) {
       clearInterval(c._retry);
     });
     self._conns = {};
+    clearInterval(self._keepTimer);
+    self._keepTimer = null;
+    // 붙는 중인 것까지 모두 끊는다
+    Object.keys(self._live).forEach((url) => {
+      try {
+        self._live[url].end(true);
+      } catch (e) {
+        /* noop */
+      }
+    });
+    self._live = Object.create(null);
     self._clients.forEach((c) => {
       try {
         c.end(true);

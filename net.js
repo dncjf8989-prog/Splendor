@@ -34,6 +34,18 @@ const NET = {
   pending: [], // 방장: 아직 hello를 안 보내 자리/관전이 안 정해진 연결
   watcherCount: 0, // 화면에 보여줄 관전자 수 (게스트는 방장이 알려준 값)
   lastCode: '', // 마지막으로 시도한 방 코드 (정원이 찼을 때 관전으로 다시 들어가려고)
+
+  // ---- 동기화 점검 ----
+  // 판 정보는 한 수가 끝날 때 한 번씩만 보낸다. 중계 서버를 거치는 동안 한 번
+  // 사라지면 양쪽이 서로 "상대 차례"라고 보고 영영 멈추므로, 방장이 주기적으로
+  // 지금 몇 번째 상태인지 알리고 어긋나면 다시 맞춘다. 0이면 끈다.
+  hbMs: 2500,
+  hbTimer: null,
+  hbCount: 0, // 게스트: 받은 점검 신호 수
+  hbBehind: 0, // 게스트: 연달아 "내가 뒤처졌다"고 본 횟수
+  hbAhead: 0, // 게스트: 연달아 "내가 앞섰다"고 본 횟수
+  lastResyncHb: -9, // 게스트: 마지막으로 다시 받아달라고 한 때의 hbCount
+  resyncing: false, // 게스트: 다시 맞추는 중 (끝나면 한 줄 알린다)
 };
 // game.js는 window.NET으로 존재 여부를 확인하므로 전역 객체에 명시적으로 노출한다.
 // (top-level const는 window의 프로퍼티가 되지 않는다.)
@@ -216,6 +228,7 @@ function netSerializeState() {
     // 누가 어떤 카드를 가져갔는지. 받는 쪽에서 그 카드를 날려 보여준다.
     actionNo: G.actionNo || 0,
     lastAction: G.lastAction || null,
+    rev: G.rev || 0,
   };
 }
 
@@ -242,6 +255,7 @@ function netApplyRemoteState(state) {
     winnerText: state.winnerText || '',
     actionNo: state.actionNo || 0,
     lastAction: state.lastAction || null,
+    rev: Number.isInteger(state.rev) ? state.rev : 0,
   };
   // 새 판이면 지킬 것이 없다 (재대결 때 지난 판 예약이 되살아나면 안 된다).
   const mine = window.NET ? NET.seat : null;
@@ -337,8 +351,17 @@ function netPushState(except) {
   netBroadcast({ type: 'state', state: netSerializeState() }, except);
 }
 
+// 같은 판인데 내가 가진 것보다 옛 상태가 도착했는가. 다른 길로 돌아 늦게 온
+// 옛 판 정보가 새 판 정보를 덮어쓰면 한 수가 되돌아가 버린다.
+// 번호가 없는 쪽(예전 버전)이 보낸 것은 비교할 수 없으므로 그대로 받는다.
+function netIsStale(state) {
+  if (!G || !state || !G.gameId || state.gameId !== G.gameId) return false;
+  return Number.isInteger(state.rev) && Number.isInteger(G.rev) && state.rev < G.rev;
+}
+
 NET.commit = function commit() {
   if (NET.mode !== 'online' || NET.status !== 'active') return;
+  G.rev = (G.rev || 0) + 1;
   if (NET.role === 'host') netPushState();
   else netSendToHost({ type: 'state', state: netSerializeState() });
 };
@@ -497,8 +520,20 @@ function netHostHandle(conn, msg) {
     if (!link) return;
     // 게스트가 자기 턴을 마쳤다. 내 화면에 반영하고 나머지에게 중계한다.
     // 보낸 사람의 판 정보에는 남의 예약이 가려져 있으므로 내가 알던 것으로 메운다.
+    if (netIsStale(msg.state)) return; // 늦게 온 옛 상태. 지금 것을 덮어쓰면 안 된다
     netApplyRemoteState(msg.state);
     netPushState(conn);
+    return;
+  }
+
+  if (msg.type === 'resync') {
+    // 판 정보를 놓친 사람이 다시 보내 달라고 한다. 자리가 있는 사람과 관전자만.
+    const watcher = !link && NET.watchers.some((w) => w.conn === conn);
+    if (!link && !watcher) return;
+    if (NET.status !== 'active' || !G) return;
+    // 같은 판이면 지금 상태만, 다른 판이면(시작 알림이 안 닿았다) 시작 알림을 통째로.
+    if (msg.gameId === G.gameId) netSendTo(conn, { type: 'state', state: netSerializeState() });
+    else netSendInit(conn, link ? link.seat : null, !link);
     return;
   }
 
@@ -575,14 +610,36 @@ function netHostStartGame() {
   const profiles = netProfileList();
   netSetOpponentsFrom(profiles);
   render();
-  NET.links.forEach((link) => {
-    netSendTo(link.conn, { type: 'init', seat: link.seat, state: netSerializeState(), profiles });
-  });
-  NET.watchers.forEach((w) => {
-    netSendTo(w.conn, { type: 'init', seat: null, state: netSerializeState(), profiles, spectator: true });
-  });
+  NET.links.forEach((link) => netSendInit(link.conn, link.seat, false, profiles));
+  NET.watchers.forEach((w) => netSendInit(w.conn, null, true, profiles));
+  netStartHeartbeat();
   if (typeof boardEnsureFresh === 'function') boardEnsureFresh(); // 자리별 전적을 띄우려면 받아둬야 한다
   renderNetPanel();
+}
+
+// 시작 알림 하나. 처음 시작할 때도, 알림이 안 닿은 사람이 다시 요청할 때도 쓴다.
+function netSendInit(conn, seat, spectator, profiles) {
+  const msg = { type: 'init', seat, state: netSerializeState(), profiles: profiles || netProfileList() };
+  if (spectator) msg.spectator = true;
+  netSendTo(conn, msg);
+}
+
+// ---- 방장의 점검 신호 ----
+function netStopHeartbeat() {
+  if (NET.hbTimer) clearTimeout(NET.hbTimer);
+  NET.hbTimer = null;
+}
+
+function netHeartbeatTick() {
+  NET.hbTimer = null;
+  if (NET.role !== 'host' || NET.mode !== 'online' || NET.status !== 'active') return;
+  if (G && G.gameId) netBroadcast({ type: 'hb', gameId: G.gameId, rev: G.rev || 0 });
+  if (NET.hbMs > 0) NET.hbTimer = setTimeout(netHeartbeatTick, NET.hbMs);
+}
+
+function netStartHeartbeat() {
+  netStopHeartbeat();
+  if (NET.hbMs > 0) NET.hbTimer = setTimeout(netHeartbeatTick, NET.hbMs);
 }
 
 // left: 상대가 스스로 나갔는지(true) 아니면 그냥 연결이 끊겼는지(false).
@@ -623,6 +680,7 @@ function netHostLinkGone(conn, left) {
 
     if (stillPlayable) {
       markPlayerLeft(gone.seat);
+      G.rev = (G.rev || 0) + 1;
       netBroadcast({ type: 'playerLeft', seat: gone.seat, name: who });
       netPushState();
       chatSystem(`${who}님이 나갔습니다. 남은 사람끼리 계속합니다.`);
@@ -749,6 +807,7 @@ function netGuestHandle(msg) {
     NET.spectator = !!msg.spectator;
     NET.seat = NET.spectator ? null : msg.seat;
     NET.status = 'active';
+    NET.resyncing = false;
     chatSystem(NET.spectator ? '관전을 시작합니다.' : '대전이 시작되었습니다.');
     netSetOpponentsFrom(msg.profiles);
     // 들어오기 전에 벌어진 한 수가 뒤늦게 날아가면 헷갈린다.
@@ -761,7 +820,17 @@ function netGuestHandle(msg) {
   }
 
   if (msg.type === 'state') {
+    if (netIsStale(msg.state)) return; // 늦게 온 옛 상태
     netApplyRemoteState(msg.state);
+    if (NET.resyncing) {
+      NET.resyncing = false;
+      chatSystem('다시 맞췄습니다.');
+    }
+    return;
+  }
+
+  if (msg.type === 'hb') {
+    netGuestHeartbeat(msg);
     return;
   }
 
@@ -832,6 +901,54 @@ function netGuestHandle(msg) {
   }
 }
 
+// 방장이 "지금 이 판의 몇 번째 상태"라고 알려온다. 내 것과 다르면 어느 쪽이
+// 놓쳤는지 보고 맞춘다. 마침 오가는 중인 메시지와 엇갈릴 수 있으므로 연달아 두 번
+// 어긋나 보일 때만 움직인다. (판이 다른 경우는 바로)
+function netGuestHeartbeat(msg) {
+  if (NET.mode !== 'online' || NET.role === 'host') return;
+  if (NET.status === 'error' || NET.status === 'idle' || typeof msg.gameId !== 'string') return;
+  NET.hbCount += 1;
+
+  const sameGame = !!(G && G.gameId === msg.gameId) && NET.status === 'active';
+  if (!sameGame) {
+    // 시작 알림이 안 닿았거나, 방장이 새 판을 깔았는데 그 알림을 놓쳤다
+    netRequestResync();
+    return;
+  }
+  if (!Number.isInteger(msg.rev)) return; // 예전 버전의 방장은 번호를 안 보낸다
+
+  const mine = G.rev || 0;
+  if (msg.rev > mine) {
+    // 방장이 한 수 더 갔다 = 방장이 보낸 판 정보를 내가 못 받았다
+    NET.hbAhead = 0;
+    NET.hbBehind += 1;
+    if (NET.hbBehind >= 2) netRequestResync();
+  } else if (msg.rev < mine && !netIsSpectator()) {
+    // 내가 한 수 더 갔다 = 내가 보낸 판 정보를 방장이 못 받았다
+    NET.hbBehind = 0;
+    NET.hbAhead += 1;
+    if (NET.hbAhead >= 2) {
+      NET.hbAhead = 0;
+      netSendToHost({ type: 'state', state: netSerializeState() });
+    }
+  } else {
+    NET.hbBehind = 0;
+    NET.hbAhead = 0;
+  }
+}
+
+function netRequestResync() {
+  // 요청이 오가는 사이에 또 요청하지 않도록, 점검 신호 하나는 건너뛴다
+  if (NET.hbCount - NET.lastResyncHb < 2) return;
+  NET.lastResyncHb = NET.hbCount;
+  NET.hbBehind = 0;
+  if (!NET.resyncing) {
+    NET.resyncing = true;
+    chatSystem('방장과 화면이 어긋나 다시 맞추는 중입니다...');
+  }
+  netSendToHost({ type: 'resync', gameId: G && G.gameId ? G.gameId : null });
+}
+
 function netGuestHostGone() {
   if (NET.mode !== 'online' || NET.status === 'error' || NET.status === 'idle') return;
   chatSystem('방장과의 연결이 끊어졌습니다.');
@@ -858,6 +975,8 @@ function netUpdateLobby() {
 // 상대가 자발적 퇴장인지 회선 장애인지 구분하지 못한다.
 function netCleanupPeer(delayClose) {
   netClearTimer();
+  netStopHeartbeat();
+  NET.resyncing = false;
   const conns = NET.links.map((link) => link.conn);
   const peer = NET.peer;
   const closeAll = () => {
