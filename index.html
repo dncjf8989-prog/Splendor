@@ -6,7 +6,7 @@
 <title>스플렌더 오리지널</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20261103c">
+<link rel="stylesheet" href="style.css?v=20261103e">
 </head>
 <body>
 <div id="app">
@@ -31,10 +31,13 @@
     </div>
   </nav>
 
+  <div id="singlePick" hidden></div>
+
   <section id="netPanel" hidden></section>
 
   <section id="startPanel" hidden>
     <div class="start-box">
+      <div id="startPick"></div>
       <h2>어떻게 하시겠어요?</h2>
       <div class="start-actions">
         <button type="button" data-start="single">
@@ -122,17 +125,18 @@
     document.write('<script src="https://unpkg.com/mqtt@5/dist/mqtt.min.js"><\/script>');
   }
 </script>
-<script src="cards.js?v=20261103c"></script>
-<script src="game.js?v=20261103c"></script>
-<script src="ai.js?v=20261103c"></script>
-<script src="anim.js?v=20261103c"></script>
-<script src="stats.js?v=20261103c"></script>
-<script src="chat.js?v=20261103c"></script>
-<script src="notice.js?v=20261103c"></script>
-<script src="quiet.js?v=20261103c"></script>
-<script src="relay.js?v=20261103c"></script>
-<script src="db.js?v=20261103c"></script>
-<script src="board.js?v=20261103c"></script>
-<script src="net.js?v=20261103c"></script>
+<script src="gamepick.js?v=20261103e"></script>
+<script src="cards.js?v=20261103e"></script>
+<script src="game.js?v=20261103e"></script>
+<script src="ai.js?v=20261103e"></script>
+<script src="anim.js?v=20261103e"></script>
+<script src="stats.js?v=20261103e"></script>
+<script src="chat.js?v=20261103e"></script>
+<script src="notice.js?v=20261103e"></script>
+<script src="quiet.js?v=20261103e"></script>
+<script src="relay.js?v=20261103e"></script>
+<script src="db.js?v=20261103e"></script>
+<script src="board.js?v=20261103e"></script>
+<script src="net.js?v=20261103e"></script>
 </body>
 </html>

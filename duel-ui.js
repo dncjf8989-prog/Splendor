@@ -409,12 +409,20 @@ function dRender() {
   const game = document.getElementById('dGame');
   if (start) start.hidden = DAPP.mode !== 'idle';
   if (DAPP.hooks.renderNet) DAPP.hooks.renderNet();
+  // 혼자 연습 화면에서도 게임을 고를 수 있다 (온라인은 로비 안에 있다)
+  const singlePick = document.getElementById('dSinglePick');
+  if (singlePick) {
+    const showPick = DAPP.mode === 'single';
+    singlePick.hidden = !showPick;
+    if (showPick && !singlePick.innerHTML) singlePick.innerHTML = typeof gamePickHtml === 'function' ? gamePickHtml('duel', 'single', '다른 게임을 혼자 해 보려면') : '';
+  }
   const logEl = document.getElementById('dLog');
   if (logEl) logEl.hidden = !v;
   if (!v) {
     if (game) game.hidden = true;
     if (DAPP.hooks.renderChat) DAPP.hooks.renderChat();
     dRenderModal(null);
+    if (typeof dHelpRender === 'function') dHelpRender(null);
     return;
   }
   if (game) game.hidden = false;
@@ -428,6 +436,7 @@ function dRender() {
   dRenderLog(v);
   if (DAPP.hooks.renderChat) DAPP.hooks.renderChat();
   dRenderModal(v);
+  if (typeof dHelpRender === 'function') dHelpRender(v);
 }
 
 // ---- 행동 보내기 ----
@@ -624,9 +633,10 @@ document.addEventListener('DOMContentLoaded', () => {
       dRender();
     }
   });
-  // 오리지널 쪽 로비에서 "스플렌더 듀얼"을 골라 넘어왔으면 온라인 대전 로비부터 연다.
-  try {
-    if (new URLSearchParams(location.search).get('mode') === 'online') dSetMode('online');
-  } catch (e) { /* 주소를 못 읽으면 평소대로 시작 화면 */ }
+  const startPick = document.getElementById('dStartPick');
+  if (startPick && typeof gamePickHtml === 'function') startPick.innerHTML = gamePickHtml('duel', 'start');
+  // 오리지널 쪽에서 "스플렌더 듀얼"을 골라 넘어왔으면 그 화면(혼자 연습/온라인 로비)부터 연다.
+  const incoming = typeof gamePickIncomingMode === 'function' ? gamePickIncomingMode() : null;
+  if (incoming) dSetMode(incoming);
   dRender();
 });

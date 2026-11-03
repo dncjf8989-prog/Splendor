@@ -1217,6 +1217,9 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ============ 게임 선택 (스플렌더 오리지널 / 스플렌더 듀얼) ============ */
 .game-pick { margin: 0 0 12px; }
+#singlePick[hidden], #dSinglePick[hidden] { display: none; }
+#singlePick, #dSinglePick { margin: 0 0 4px; max-width: 460px; }
+.start-box .game-pick { max-width: 460px; margin: 0 auto 18px; text-align: left; }
 .game-pick-label { font-size: 12px; color: var(--muted); margin: 0 0 4px; }
 .game-switch small { display: block; font-weight: 400; font-size: 11px; opacity: 0.8; }
 .game-switch {

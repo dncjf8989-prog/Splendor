@@ -1145,6 +1145,13 @@ function updateModeTabs() {
   const startPanel = document.getElementById('startPanel');
   // 아직 안 본 공지가 있으면 그것부터. 공지를 닫으면 시작 화면이 뜬다.
   const waitNotice = typeof noticePending === 'function' && noticePending();
+  // 싱글 화면에서도 게임을 고를 수 있다 (온라인은 로비 안에 있다)
+  const singlePick = document.getElementById('singlePick');
+  if (singlePick) {
+    const showPick = !waitNotice && APP.started && NET.mode === 'single';
+    singlePick.hidden = !showPick;
+    if (showPick && !singlePick.innerHTML) singlePick.innerHTML = typeof gamePickHtml === 'function' ? gamePickHtml('original', 'single', '다른 게임을 혼자 해 보려면') : '';
+  }
   if (waitNotice || !APP.started) {
     if (startPanel) startPanel.hidden = waitNotice; // 공지 중에는 시작 화면도 가린다
     gameArea.hidden = true;
@@ -1242,13 +1249,7 @@ function renderNetPanelBody() {
 
   if (NET.status === 'idle') {
     el.innerHTML = `<div class="net-box">
-      <div class="game-pick">
-        <div class="game-pick-label">게임 고르기 (방을 만들거나 들어가기 전에 먼저 고릅니다)</div>
-        <div class="game-switch" role="group" aria-label="게임 선택">
-          <span class="game-opt active" aria-current="true">스플렌더 오리지널 <small>2~4인</small></span>
-          <a class="game-opt" href="duel.html?mode=online">스플렌더 듀얼 <small>2인</small></a>
-        </div>
-      </div>
+      ${typeof gamePickHtml === 'function' ? gamePickHtml('original', 'online', '방을 만들거나 들어가기 전에 먼저 고릅니다') : ''}
       <div class="net-row">
         <button data-net-act="create">${selectedPlayerCount}인 방 만들기</button>
         <span class="net-or">또는</span>
@@ -1402,10 +1403,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 듀얼 쪽 로비에서 "스플렌더 오리지널"을 골라 넘어왔으면 온라인 대전 로비부터 연다.
-  try {
-    if (new URLSearchParams(location.search).get('mode') === 'online') appStart('online');
-  } catch (e) { /* 주소를 못 읽으면 평소대로 시작 화면 */ }
+  // 시작 화면에도 게임 고르기를 둔다.
+  const startPick = document.getElementById('startPick');
+  if (startPick && typeof gamePickHtml === 'function') startPick.innerHTML = gamePickHtml('original', 'start');
+
+  // 듀얼 쪽에서 "스플렌더 오리지널"을 골라 넘어왔으면 그 화면(싱글/온라인 로비)부터 연다.
+  const incoming = typeof gamePickIncomingMode === 'function' ? gamePickIncomingMode() : null;
+  if (incoming) appStart(incoming);
 
   updateModeTabs();
 

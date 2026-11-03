@@ -6,8 +6,8 @@
 <title>스플렌더 듀얼</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20261103c">
-<link rel="stylesheet" href="duel.css?v=20261103c">
+<link rel="stylesheet" href="style.css?v=20261103e">
+<link rel="stylesheet" href="duel.css?v=20261103e">
 </head>
 <body>
 <div id="app">
@@ -15,6 +15,7 @@
     <h1>스플렌더 듀얼 <span class="badge">2인 전용</span></h1>
     <div class="header-actions">
       <button id="quietBtn" type="button" aria-pressed="false">저채도</button>
+      <button id="dHelpBtn" type="button" aria-pressed="true" title="규칙 도우미를 켜고 끕니다">도우미 켬</button>
       <button id="dRuleBtn" type="button">규칙</button>
       <button id="dStatsBtn" type="button">전적</button>
       <button id="dNewBtn" type="button">새 게임</button>
@@ -28,8 +29,11 @@
 
   <section id="dNetPanel" hidden></section>
 
+  <div id="dSinglePick" hidden></div>
+
   <section id="dStart">
     <div class="start-box">
+      <div id="dStartPick"></div>
       <h2>어떻게 하시겠어요?</h2>
       <div class="start-actions">
         <button type="button" data-d-start="single">
@@ -75,6 +79,21 @@
   </div>
 </div>
 
+<aside id="dHelper" class="d-helper" aria-label="규칙 도우미" hidden>
+  <div class="d-help-head">
+    <b>규칙 도우미</b>
+    <span class="d-help-btns">
+      <button type="button" data-help="min" aria-expanded="true">접기</button>
+      <button type="button" data-help="off">끄기</button>
+    </span>
+  </div>
+  <div id="dHelpBrief" class="d-help-brief"></div>
+  <div id="dHelpBody">
+    <div id="dHelpNow"></div>
+    <div id="dHelpRef"></div>
+  </div>
+</aside>
+
 <div id="modalOverlay" class="hidden">
   <div id="modal"></div>
 </div>
@@ -96,14 +115,16 @@
     document.write('<script src="https://unpkg.com/mqtt@5/dist/mqtt.min.js"><\/script>');
   }
 </script>
-<script src="duel-cards.js?v=20261103c"></script>
-<script src="duel-engine.js?v=20261103c"></script>
-<script src="duel-ai.js?v=20261103c"></script>
-<script src="relay.js?v=20261103c"></script>
-<script src="db.js?v=20261103c"></script>
-<script src="duel-ui.js?v=20261103c"></script>
-<script src="duel-stats.js?v=20261103c"></script>
-<script src="duel-net.js?v=20261103c"></script>
-<script src="quiet.js?v=20261103c"></script>
+<script src="gamepick.js?v=20261103e"></script>
+<script src="duel-cards.js?v=20261103e"></script>
+<script src="duel-engine.js?v=20261103e"></script>
+<script src="duel-ai.js?v=20261103e"></script>
+<script src="relay.js?v=20261103e"></script>
+<script src="db.js?v=20261103e"></script>
+<script src="duel-ui.js?v=20261103e"></script>
+<script src="duel-help.js?v=20261103e"></script>
+<script src="duel-stats.js?v=20261103e"></script>
+<script src="duel-net.js?v=20261103e"></script>
+<script src="quiet.js?v=20261103e"></script>
 </body>
 </html>

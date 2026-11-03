@@ -236,3 +236,68 @@
 :root[data-quiet] .d-royal { background: #f7f7f5; border-color: var(--border); }
 :root[data-quiet] .d-panel.d-turn { box-shadow: none; }
 :root[data-quiet] .d-tag.on { background: #6c6c6c; border-color: #6c6c6c; }
+
+/* ============ 규칙 도우미 ============ */
+/* 넓은 화면에서는 판 오른쪽 여백에, 좁은 화면에서는 아래에 띄운다.
+   팝업(z-index 50~60)보다는 아래에 둔다. */
+.d-helper {
+  position: fixed; z-index: 40;
+  display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  font-size: 13px; line-height: 1.6; overflow: hidden;
+}
+.d-helper[hidden] { display: none; }
+.d-help-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 7px 12px; border-bottom: 1px solid var(--border);
+}
+.d-help-btns { display: flex; gap: 6px; }
+.d-help-btns button { font-size: 11px; padding: 3px 9px; border-radius: 6px; }
+.d-help-brief { padding: 8px 12px; font-weight: 700; border-left: 4px solid var(--border); }
+.d-helper[data-tone="go"] .d-help-brief { border-left-color: var(--accent); }
+.d-helper[data-tone="choice"] .d-help-brief { border-left-color: var(--gem-red); }
+.d-helper[data-tone="over"] .d-help-brief { border-left-color: var(--accent); }
+#dHelpBody { overflow-y: auto; padding: 0 12px 12px; min-height: 0; }
+.d-helper.d-help-min #dHelpBody { display: none; }
+.d-help-sec { margin: 10px 0; }
+.d-help-sec h4 {
+  margin: 0 0 3px; font-size: 12px; color: var(--muted);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.d-helper p { margin: 4px 0; }
+.d-helper ul { margin: 2px 0 4px; padding-left: 18px; }
+.d-helper li { margin: 2px 0; }
+.d-help-ok { color: var(--accent); font-weight: 700; }
+.d-help-no { color: var(--gem-red); font-weight: 700; }
+.d-help-fine { font-size: 11px; color: var(--muted); }
+.d-help-link {
+  background: none; border: none; padding: 0; font: inherit; font-size: 12px;
+  color: var(--accent); text-decoration: underline; cursor: pointer;
+}
+.d-helper details { border-top: 1px solid var(--border); padding: 4px 0; }
+.d-helper summary { cursor: pointer; font-weight: 700; padding: 2px 0; }
+.d-help-tasks { list-style: none; padding: 0; margin: 2px 0 6px; }
+.d-help-tasks li.done { color: var(--muted); }
+.d-help-chk { display: inline-block; width: 16px; }
+.d-help-next { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; margin: 6px 0; }
+body.d-help-on #dGame .d-card[data-card] { cursor: help; }
+.d-card.d-help-pick { outline: 3px dashed var(--accent); outline-offset: 2px; }
+:root[data-quiet] .d-helper { border-radius: 2px; box-shadow: none; }
+:root[data-quiet] .d-help-next { border-radius: 2px; }
+
+@media (min-width: 1480px) {
+  body.d-help-on #app { max-width: 1640px; padding-right: 356px; }
+  .d-helper {
+    top: 72px; right: max(16px, calc((100vw - 1640px) / 2 + 16px));
+    width: 324px; max-height: calc(100vh - 92px);
+  }
+}
+@media (max-width: 1479px) {
+  .d-helper {
+    left: 50%; transform: translateX(-50%); bottom: 8px;
+    width: min(760px, calc(100vw - 16px)); max-height: 46vh;
+  }
+  body.d-help-on { padding-bottom: 52vh; }
+  body.d-help-on.d-help-min { padding-bottom: 96px; }
+}
