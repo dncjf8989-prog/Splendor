@@ -106,9 +106,11 @@ function dCardHtml(id, o) {
   const c = duelCard(id);
   const power = c.power ? `<div class="d-power" title="${dEsc(D_POWER[c.power][1])}">${D_POWER[c.power][0]}</div>` : '';
   const crowns = c.crowns ? `<span class="d-crowns" title="왕관 ${c.crowns}개">${'♛'.repeat(c.crowns)}</span>` : '';
-  const wild = c.bonus === 'wild' ? '<div class="d-power">와일드</div>' : '';
+  const wild = c.bonus === 'wild' ? '<div class="d-power">색상 선택</div>' : c.bonus === 'none' ? '<div class="d-power">황금 카드</div>' : '';
+  const gemCls = c.bonus === 'none' ? 'gem-gold' : `gem-${c.bonus}`;
+  const gemTitle = c.bonus === 'wild' ? '색상 선택: 산 뒤 이미 가진 카드의 색 중 하나를 고릅니다' : c.bonus === 'none' ? '황금 카드: 보너스 색이 없습니다' : DUEL_COLOR_LABEL[c.bonus] + ' 보너스';
   return `<div class="card-tile gem-border-${c.bonus} d-card${opt.can ? ' affordable d-can' : ''}" data-card="${id}">
-    <div class="card-top"><span class="card-points">${c.pts || ''}</span>${crowns}<span class="card-gem gem-${c.bonus}" title="${c.bonus === 'wild' ? '와일드: 이미 가진 카드의 색을 따릅니다' : DUEL_COLOR_LABEL[c.bonus] + ' 보너스'}"></span></div>
+    <div class="card-top"><span class="card-points">${c.pts || ''}</span>${crowns}<span class="card-gem ${gemCls}" title="${gemTitle}"></span></div>
     ${power}${wild}
     <div class="card-cost">${dCostHtml(c.cost)}</div>
     ${opt.buttons || ''}
@@ -267,7 +269,7 @@ function dBannerText(v) {
   const opp = v.players[1 - DAPP.seat];
   if (v.choice) {
     if (v.choice.seat !== DAPP.seat) return `${dEsc(opp.name)}이(가) 선택하는 중입니다.`;
-    return { wild: '와일드 카드의 색을 고르세요.', royal: '가져올 왕실 카드를 고르세요.', steal: '상대에게서 가져올 토큰을 고르세요.', pick: '가져올 칸을 판에서 고르세요. (점선 표시)', discard: `토큰이 ${DUEL.TOKEN_MAX}개를 넘었습니다. ${v.choice.n}개를 버리세요.` }[v.choice.type] || '선택하세요.';
+    return { wild: '색상 선택 카드의 색을 고르세요.', royal: '가져올 왕실 카드를 고르세요.', steal: '상대에게서 가져올 토큰을 고르세요.', pick: '가져올 칸을 판에서 고르세요. (점선 표시)', discard: `토큰이 ${DUEL.TOKEN_MAX}개를 넘었습니다. ${v.choice.n}개를 버리세요.` }[v.choice.type] || '선택하세요.';
   }
   if (v.turn !== DAPP.seat) return DAPP.mode === 'single' ? 'AI가 생각하는 중입니다...' : `${dEsc(opp.name)}(상대방)의 차례를 기다리는 중입니다.`;
   if (v.mainDone) return '마무리하는 중입니다.';
@@ -315,9 +317,10 @@ function dRulesHtml() {
       <li>끝나면 토큰은 <b>${DUEL.TOKEN_MAX}개</b>까지만 들 수 있습니다. 넘으면 버립니다. <span class="d-fine">(기억)</span></li>
     </ul>
     <h4>카드와 능력</h4>
-    <ul><li>보너스 색 카드는 그 색의 값을 영구히 깎아 줍니다. 와일드 카드는 이미 가진 카드의 색을 따릅니다.</li>
+    <ul><li>보너스 색 카드는 그 색의 값을 영구히 깎아 줍니다. 색상 선택 카드는 산 뒤 이미 가진 카드의 색 중 하나를 고릅니다.</li>
     <li>능력: <b>한 번 더</b>(바로 한 번 더 둠), <b>보석 1개</b>(판에서 같은 색), <b>특권</b>, <b>훔치기</b>(상대 보석/진주 1개).</li>
-    <li>왕관이 처음 <b>3개</b>, <b>6개</b>가 되면 왕실 카드를 한 장씩 받습니다(행동이 아닙니다).</li></ul>
+    <li>왕관이 처음 <b>3개</b>, <b>6개</b>가 되면 왕실 카드를 한 장씩 받습니다(행동이 아닙니다).</li>
+    <li><b>황금 카드</b>는 보너스 색이 없어 비용을 깎아 주지 않고 점수만 줍니다.</li></ul>
     <h4>특권 두루마리</h4>
     <ul><li>모두 3개. 두 번째 플레이어가 1개를 갖고 시작합니다. <span class="d-fine">(기억)</span></li>
     <li>받을 때 판 옆에 남은 게 없으면 상대의 것을 가져옵니다.</li></ul>
@@ -349,7 +352,7 @@ function dChoiceHtml(v) {
   if (ch.seat !== DAPP.seat) return null;
   if (ch.type === 'wild') {
     const b = duelBonus(v, DAPP.seat);
-    return `<h3>와일드 카드의 색</h3><p>이미 가진 카드의 색 중 하나를 고르세요.</p>
+    return `<h3>색상 선택 카드의 색</h3><p>이미 가진 카드의 색 중 하나를 고르세요.</p>
       <div class="d-pick">${ch.options.map((c) => `<button type="button" data-act="c-wild" data-color="${c}">${dTok(c, b[c])}<br>${DUEL_COLOR_LABEL[c]}</button>`).join('')}</div>`;
   }
   if (ch.type === 'royal') {

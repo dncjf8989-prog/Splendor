@@ -14,11 +14,11 @@ function duelAiValue(state, seat, id) {
   const p = state.players[seat];
   const own = p.cards.length;
   // 초반일수록 할인(보너스)이 값지다
-  const discount = card.bonus === 'wild' ? 1.5 : Math.max(0.3, 2.2 - own * 0.18);
+  const discount = card.bonus === 'none' ? 0 : card.bonus === 'wild' ? 1.5 : Math.max(0.3, 2.2 - own * 0.18);
   const cp = duelColorPoints(state, seat);
   let v = card.pts * 3 + card.crowns * 1.6 + discount + (card.power ? DUEL_AI_POWER[card.power] || 0 : 0);
   // 한 색으로 10점을 노릴 수 있는 색이면 조금 더
-  if (card.bonus !== 'wild' && cp[card.bonus] + card.pts >= 7) v += 1.5;
+  if (card.bonus !== 'wild' && card.bonus !== 'none' && cp[card.bonus] + card.pts >= 7) v += 1.5;
   const crowns = duelCrowns(state, seat);
   [3, 6, 10].forEach((n) => {
     if (crowns < n && crowns + card.crowns >= n) v += n === 10 ? 6 : 2.5;
@@ -45,8 +45,38 @@ function duelAiNeeds(state, seat, id) {
   return { need, total, shortage };
 }
 
+// 목표 카드를 기억한다 (같은 판, 같은 자리). 매 턴 목표가 바뀌면 토큰만 쌓고 아무것도 못 산다.
+const DUEL_AI_MEM = {};
+
+// 판 위(와 주머니)에서 앞으로 더 가져올 수 있는 토큰 수. 주머니 내용을 모르는 화면(요약 상태)에서는 넉넉히 본다.
+function duelAiSupply(state) {
+  const a = {};
+  DUEL.TOKEN_TYPES.forEach((t) => (a[t] = 0));
+  state.board.forEach((t) => {
+    if (t) a[t] += 1;
+  });
+  if (state.bag) state.bag.forEach((t) => (a[t] += 1));
+  else if (state.bagN) DUEL.TOKEN_TYPES.forEach((t) => (a[t] += state.bagN));
+  return a;
+}
+
+// 부족한 토큰을 구할 길이 있는가. 판과 주머니에 없는 색은 금(이미 가졌거나 예약으로 받을 수 있는 만큼)으로만 메운다.
+function duelAiReachable(state, seat, needs) {
+  const p = state.players[seat];
+  const a = duelAiSupply(state);
+  let miss = 0;
+  DUEL.COLORS.concat(['pearl']).forEach((c) => {
+    miss += Math.max(0, (needs.need[c] || 0) - a[c]);
+  });
+  const slots = DUEL.RESERVE_MAX - p.reserved.length;
+  const goldMore = duelCanReserve(state, seat) ? Math.min(a.gold, slots) : 0;
+  return miss <= p.tokens.gold + goldMore;
+}
+
 function duelAiTarget(state, seat) {
   const p = state.players[seat];
+  const memKey = (state.gameId || '') + ':' + seat;
+  const prevId = DUEL_AI_MEM[memKey];
   const ids = [];
   [1, 2, 3].forEach((lv) => state.pyramid[lv].forEach((id) => id !== null && ids.push({ id, from: 'pyr' })));
   p.reserved.forEach((r, i) => r.id !== null && ids.push({ id: r.id, from: 'res', i }));
@@ -55,9 +85,11 @@ function duelAiTarget(state, seat) {
     const card = duelCard(x.id);
     if (card.bonus === 'wild' && !DUEL.COLORS.some((c) => duelBonus(state, seat)[c] > 0)) return;
     const n = duelAiNeeds(state, seat, x.id);
-    const score = duelAiValue(state, seat, x.id) - n.shortage * 0.9;
+    if (n.shortage > 0 && !duelAiReachable(state, seat, n)) return; // 구할 수 없는 토큰이 필요한 카드는 노리지 않는다
+    const score = duelAiValue(state, seat, x.id) - n.shortage * 0.9 + (x.id === prevId ? 1.8 : 0);
     if (!best || score > best.score) best = { ref: x, score, needs: n };
   });
+  if (best) DUEL_AI_MEM[memKey] = best.ref.id;
   return best;
 }
 
@@ -155,6 +187,20 @@ function duelAiAction(state, seat, rng) {
   });
 
   const canRep = !state.mainDone && duelBagLen(state) > 0 && state.board.includes(null);
+
+  // 토큰을 한도 가까이 쥐고도 쓸 만한 줄이 없으면, 카드를 예약해 금을 받는다.
+  // (목표가 이미 예약한 카드라서 아래의 예약 규칙에 안 걸릴 때도 막히지 않게)
+  if (!state.mainDone && have >= DUEL.TOKEN_MAX - 1 && (!bestTake || bestTake.sc < 1.0) && duelCanReserve(state, seat)) {
+    let pick = null;
+    [1, 2, 3].forEach((lv) =>
+      state.pyramid[lv].forEach((id, i) => {
+        if (id === null) return;
+        const sc = duelAiValue(state, seat, id) - duelAiNeeds(state, seat, id).shortage * 0.9;
+        if (!pick || sc > pick.sc) pick = { sc, src: { k: 'pyr', lv, i } };
+      })
+    );
+    if (pick) return { t: 'reserve', src: pick.src };
+  }
 
   // 쓸 만한 줄이 없으면 먼저 판을 채운다
   if (canRep && (!bestTake || bestTake.sc < 0.4)) return { t: 'replenish' };

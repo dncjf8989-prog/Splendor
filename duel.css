@@ -64,6 +64,7 @@
 .d-power { font-size: 10px; font-weight: 700; color: var(--accent); line-height: 1.2; }
 .d-crowns { font-size: 11px; color: var(--accent); letter-spacing: -1px; }
 .card-tile.gem-border-wild { border-color: var(--gem-gold); background: var(--noble-bg); }
+.card-tile.gem-border-none { border: 4px double var(--gem-gold); background: var(--noble-bg); }
 .card-gem.gem-wild { border-color: var(--gem-gold); }
 .card-tile.card-back { align-items: center; justify-content: center; }
 .d-back-text { text-align: center; color: var(--muted); font-size: 11px; line-height: 1.4; }
@@ -190,7 +191,8 @@
 :root[data-quiet] .d-cell,
 :root[data-quiet] .d-royal { border-radius: 2px; }
 :root[data-quiet] #dPyramid { padding: 12px 10px; }
-:root[data-quiet] .card-tile.gem-border-wild { background: #ffffff; }
+:root[data-quiet] .card-tile.gem-border-wild,
+:root[data-quiet] .card-tile.gem-border-none { background: #ffffff; }
 :root[data-quiet] .d-royal { background: #f7f7f5; border-color: var(--border); }
 :root[data-quiet] .d-cell.gem-white { box-shadow: inset 0 3px 0 var(--gem-white-edge); }
 :root[data-quiet] .d-cell.gem-blue { box-shadow: inset 0 3px 0 var(--gem-blue); }

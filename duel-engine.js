@@ -207,6 +207,7 @@ function duelTokenTotal(p) {
 function duelCardColor(p, id) {
   const c = duelCard(id);
   if (!c) return null;
+  if (c.bonus === 'none') return null; // 황금 카드: 보너스 색이 없다 (점수만 있다)
   return c.bonus === 'wild' ? p.assigned[id] || null : c.bonus;
 }
 
@@ -582,7 +583,7 @@ function duelAdvance(state, rng) {
         const cols = DUEL.COLORS.filter((c) => duelBonus(state, seat)[c] > 0);
         if (cols.length === 1) {
           p.assigned[step.id] = cols[0];
-          duelLog(state, `와일드 카드가 ${DUEL_COLOR_LABEL[cols[0]]} 보너스가 되었습니다.`);
+          duelLog(state, `색상 선택 카드가 ${DUEL_COLOR_LABEL[cols[0]]} 보너스가 되었습니다.`);
         } else if (cols.length > 1) {
           state.choice = { type: 'wild', seat, id: step.id, options: cols };
         } else {
@@ -706,7 +707,7 @@ function duelChoose(state, seat, a, rng) {
   if (ch.type === 'wild') {
     if (!ch.options.includes(a.color)) return duelFail('고를 수 없는 색입니다.');
     p.assigned[ch.id] = a.color;
-    duelLog(state, `와일드 카드가 ${DUEL_COLOR_LABEL[a.color]} 보너스가 되었습니다.`);
+    duelLog(state, `색상 선택 카드가 ${DUEL_COLOR_LABEL[a.color]} 보너스가 되었습니다.`);
   } else if (ch.type === 'royal') {
     if (!ch.options.includes(a.id)) return duelFail('고를 수 없는 왕실 카드입니다.');
     state.royals.splice(state.royals.indexOf(a.id), 1);
