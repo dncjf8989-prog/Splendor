@@ -70,6 +70,7 @@ function boardMyOpponents() {
   const by = Object.create(null);
   BOARD.rawGames.forEach((g) => {
     if (!g || g.n !== 2 || !Array.isArray(g.p) || g.p.length !== 2) return;
+    if (g.k === 'duel') return; // 듀얼은 오리지널 전적이 아니다
     const me = g.p.find((x) => x.id === myId);
     if (!me) return;
     const opp = g.p.find((x) => x.id !== myId);

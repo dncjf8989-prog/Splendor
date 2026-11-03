@@ -1215,6 +1215,29 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   .start-actions button { min-width: 0; width: 100%; }
 }
 
+/* ============ 게임 선택 (스플렌더 오리지널 / 스플렌더 듀얼) ============ */
+.game-switch {
+  display: flex;
+  margin: 0 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel);
+}
+.game-switch a {
+  flex: 1;
+  text-align: center;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  text-decoration: none;
+}
+.game-switch a + a { border-left: 1px solid var(--border); }
+.game-switch a:hover:not(.active) { color: var(--text); background: var(--bg); }
+.game-switch a.active { background: var(--accent); color: var(--accent-fg); }
+.game-switch a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
 /* ============ 저채도 모드 ============
    사무실에서 멀리서 보면 눈에 띄는 건 넓은 색면과 둥근 모서리다. 그 둘을
    걷어내고 표처럼 보이게 한다. 보석 색은 이 게임의 정보라 지우지 않고
@@ -1412,3 +1435,5 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
   vertical-align: middle;
 }
 :root[data-quiet] .card-tile.card-back { background: var(--card-empty-a); }
+:root[data-quiet] .game-switch { border-radius: 2px; }
+:root[data-quiet] .game-switch a.active { background: #6c6c6c; }

@@ -1,17 +1,17 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-game-title="스플렌더 오리지널">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>스플렌더 라이트</title>
+<title>스플렌더 오리지널</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20261015b">
+<link rel="stylesheet" href="style.css?v=20261103b">
 </head>
 <body>
 <div id="app">
   <header id="header">
-    <h1>스플렌더 라이트 <span class="badge">2~4인 데모</span></h1>
+    <h1>스플렌더 오리지널 <span class="badge">2~4인</span></h1>
     <div class="header-actions">
       <button id="quietBtn" type="button" aria-pressed="false">저채도</button>
       <button id="noticeBtn" type="button">공지</button>
@@ -19,6 +19,11 @@
       <button id="newGameBtn">새 게임</button>
     </div>
   </header>
+
+  <nav class="game-switch" aria-label="게임 선택">
+    <a href="index.html" class="active" aria-current="page">스플렌더 오리지널</a>
+    <a href="duel.html">스플렌더 듀얼</a>
+  </nav>
 
   <nav id="modeTabs">
     <button id="modeSingleBtn" class="mode-tab active" type="button">싱글 플레이</button>
@@ -122,17 +127,17 @@
     document.write('<script src="https://unpkg.com/mqtt@5/dist/mqtt.min.js"><\/script>');
   }
 </script>
-<script src="cards.js?v=20261015b"></script>
-<script src="game.js?v=20261015b"></script>
-<script src="ai.js?v=20261015b"></script>
-<script src="anim.js?v=20261015b"></script>
-<script src="stats.js?v=20261015b"></script>
-<script src="chat.js?v=20261015b"></script>
-<script src="notice.js?v=20261015b"></script>
-<script src="quiet.js?v=20261015b"></script>
-<script src="relay.js?v=20261015b"></script>
-<script src="db.js?v=20261015b"></script>
-<script src="board.js?v=20261015b"></script>
-<script src="net.js?v=20261015b"></script>
+<script src="cards.js?v=20261103b"></script>
+<script src="game.js?v=20261103b"></script>
+<script src="ai.js?v=20261103b"></script>
+<script src="anim.js?v=20261103b"></script>
+<script src="stats.js?v=20261103b"></script>
+<script src="chat.js?v=20261103b"></script>
+<script src="notice.js?v=20261103b"></script>
+<script src="quiet.js?v=20261103b"></script>
+<script src="relay.js?v=20261103b"></script>
+<script src="db.js?v=20261103b"></script>
+<script src="board.js?v=20261103b"></script>
+<script src="net.js?v=20261103b"></script>
 </body>
 </html>

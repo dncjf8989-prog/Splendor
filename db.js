@@ -155,11 +155,17 @@ function dbValidGame(g) {
   });
 }
 
+// 스플렌더 듀얼 판인가. 듀얼 판도 같은 /games 에 쌓이지만 오리지널 전적에는 세지 않는다.
+function dbIsDuel(g) {
+  return !!g && g.k === 'duel';
+}
+
 // 판 목록 -> 사람별 전적. 랭킹 화면이 쓰는 모양 그대로 만든다.
+// (오리지널 전용: 듀얼 판은 건너뛴다. 듀얼 전적은 duel-stats.js 가 따로 센다)
 function dbTally(games) {
   const by = Object.create(null);
   (games || []).forEach((g) => {
-    if (!dbValidGame(g)) return;
+    if (!dbValidGame(g) || dbIsDuel(g)) return;
     const n = String(g.n);
     if (n !== '2' && n !== '3' && n !== '4') return;
     g.p.forEach((x) => {

@@ -10,7 +10,8 @@
 
 const QUIET_KEY = 'splendorLiteQuiet';
 const QUIET_TITLE = '분기_집계_v3.xlsx';
-const GAME_TITLE = '스플렌더 라이트';
+// 듀얼 화면은 <html data-game-title>로 자기 이름을 알린다
+const GAME_TITLE = document.documentElement.getAttribute('data-game-title') || '스플렌더 라이트';
 
 let QUIET_ON = false;
 

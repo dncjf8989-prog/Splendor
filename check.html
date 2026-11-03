@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>전적 맞춰보기 - 스플렌더 라이트</title>
+<title>전적 맞춰보기 - 스플렌더 오리지널</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20261015b">
+<link rel="stylesheet" href="style.css?v=20261103b">
 <style>
   #wrap { max-width: 860px; margin: 0 auto; padding: 24px 16px 60px; }
   #wrap h1 { font-size: 20px; margin: 0 0 6px; }
@@ -67,7 +67,7 @@
   <a class="backlink" href="./">← 게임으로 돌아가기</a>
 </div>
 
-<script src="db.js?v=20261015b"></script>
+<script src="db.js?v=20261103b"></script>
 <script>
 'use strict';
 
@@ -124,7 +124,13 @@ if (!prof || !prof.id) {
   });
 }
 
-function render(games) {
+function render(allGames) {
+  // 스플렌더 듀얼 판은 오리지널 전적이 아니므로 비교에서 뺀다
+  var games = allGames.filter(function (g) { return g.k !== 'duel'; });
+  var duelCount = allGames.filter(function (g) {
+    return g.k === 'duel' && g.p.some(function (x) { return x.id === prof.id; });
+  }).length;
+  if (duelCount) say('듀얼 ' + duelCount + '판은 오리지널 비교에서 제외');
   var mine = games.filter(function (g) {
     return g.p.some(function (x) { return x.id === prof.id; });
   });
@@ -164,6 +170,7 @@ function render(games) {
   t += '<tr><td><b>합계</b></td><td><b>' + fmt(LS) + '</b></td><td><b>' + fmt(SS) + '</b></td><td class="' +
     (tot(dd) === 0 && !dd.w && !dd.l && !dd.d ? 'ok' : 'bad') + '"><b>' +
     (!dd.w && !dd.l && !dd.d ? '같음' : diffText(dd)) + '</b></td></tr></table>';
+  if (duelCount) t += '<p class="dim">스플렌더 듀얼 ' + duelCount + '판은 오리지널 전적이 아니라서 이 비교에서 뺐습니다.</p>';
   document.getElementById('cmp').innerHTML = t;
   say('합계 | 내전적 ' + fmt(LS) + ' | 서버 ' + fmt(SS) + ' | ' + (!dd.w && !dd.l && !dd.d ? '같음' : diffText(dd)));
 
