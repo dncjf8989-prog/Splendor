@@ -104,15 +104,17 @@ function dCostHtml(cost) {
 function dCardHtml(id, o) {
   const opt = o || {};
   const c = duelCard(id);
+  const cost = duelCardCost(DAPP.S, id); // 이번 판의 실제 비용 (티어마다 색이 섞여 있다). dView()는 매번 복사하므로 상태를 직접 본다
   const power = c.power ? `<div class="d-power" title="${dEsc(D_POWER[c.power][1])}">${D_POWER[c.power][0]}</div>` : '';
   const crowns = c.crowns ? `<span class="d-crowns" title="왕관 ${c.crowns}개">${'♛'.repeat(c.crowns)}</span>` : '';
   const wild = c.bonus === 'wild' ? '<div class="d-power">색상 선택</div>' : c.bonus === 'none' ? '<div class="d-power">황금 카드</div>' : '';
-  const gemCls = c.bonus === 'none' ? 'gem-gold' : `gem-${c.bonus}`;
-  const gemTitle = c.bonus === 'wild' ? '색상 선택: 산 뒤 이미 가진 카드의 색 중 하나를 고릅니다' : c.bonus === 'none' ? '황금 카드: 보너스 색이 없습니다' : DUEL_COLOR_LABEL[c.bonus] + ' 보너스';
+  // 황금 카드는 보너스 색이 없으므로 위쪽에 보석 표시도, 금색 테두리도 두지 않는다 (점수만 있는 카드)
+  const gemTitle = c.bonus === 'wild' ? '색상 선택: 산 뒤 이미 가진 카드의 색 중 하나를 고릅니다' : DUEL_COLOR_LABEL[c.bonus] + ' 보너스';
+  const gem = c.bonus === 'none' ? '' : `<span class="card-gem gem-${c.bonus}" title="${gemTitle}"></span>`;
   return `<div class="card-tile gem-border-${c.bonus} d-card${opt.can ? ' affordable d-can' : ''}" data-card="${id}">
-    <div class="card-top"><span class="card-points">${c.pts || ''}</span>${crowns}<span class="card-gem ${gemCls}" title="${gemTitle}"></span></div>
+    <div class="card-top"><span class="card-points">${c.pts || ''}</span>${crowns}${gem}</div>
     ${power}${wild}
-    <div class="card-cost">${dCostHtml(c.cost)}</div>
+    <div class="card-cost">${dCostHtml(cost)}</div>
     ${opt.buttons || ''}
   </div>`;
 }
@@ -383,7 +385,8 @@ function dRulesHtml() {
     <ul><li>보너스 색 카드는 그 색의 값을 영구히 깎아 줍니다. 색상 선택 카드는 산 뒤 이미 가진 카드의 색 중 하나를 고릅니다.</li>
     <li>능력: <b>한 번 더</b>(바로 한 번 더 둠), <b>보석 1개</b>(판에서 같은 색), <b>특권</b>, <b>훔치기</b>(상대 보석/진주 1개).</li>
     <li>왕관이 처음 <b>3개</b>, <b>6개</b>가 되면 왕실 카드를 한 장씩 받습니다(행동이 아닙니다).</li>
-    <li><b>황금 카드</b>는 보너스 색이 없어 비용을 깎아 주지 않고 점수만 줍니다.</li></ul>
+    <li><b>황금 카드</b>는 보너스 색이 없어 비용을 깎아 주지 않고 점수만 줍니다. 카드 위쪽에 보석 표시가 없습니다.</li>
+    <li><b>비용의 색은 판마다 섞입니다.</b> 티어마다 따로, 다섯 보석 색이 무작위로 서로 바뀝니다. 보너스 색·점수·왕관·능력과 진주 비용은 그대로이고, 카드에 보이는 비용이 이번 판의 실제 비용입니다.</li></ul>
     <h4>특권 두루마리</h4>
     <ul><li>모두 3개. 두 번째 플레이어가 1개를 갖고 시작합니다. <span class="d-fine">(기억)</span></li>
     <li>받을 때 판 옆에 남은 게 없으면 상대의 것을 가져옵니다.</li></ul>

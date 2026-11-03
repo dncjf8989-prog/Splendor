@@ -125,12 +125,13 @@ function dhSection(title, body) {
 // 지금 이 카드를 살 때 무엇이 얼마나 모자란가
 function dhShortage(v, seat, id) {
   const card = duelCard(id);
+  const cost = duelCardCost(v, id); // 이번 판의 실제 비용 (색이 섞여 있다)
   const p = v.players[seat];
   const bonus = duelBonus(v, seat);
   const rows = [];
   let missing = 0;
   DUEL.COLORS.forEach((c) => {
-    const base = card.cost[c] || 0;
+    const base = cost[c] || 0;
     if (!base) return;
     const disc = Math.min(base, bonus[c]);
     const need = base - disc;
@@ -138,8 +139,8 @@ function dhShortage(v, seat, id) {
     rows.push({ t: c, base, disc, need, have, miss: need - have });
     missing += need - have;
   });
-  if (card.cost.pearl) {
-    const need = card.cost.pearl;
+  if (cost.pearl) {
+    const need = cost.pearl;
     const have = Math.min(need, p.tokens.pearl);
     rows.push({ t: 'pearl', base: need, disc: 0, need, have, miss: need - have });
     missing += need - have;
@@ -191,6 +192,7 @@ function dhCardHtml(v, id) {
   }
   if (c.power) lines.push(dhP(`<b>능력 · ${D_POWER[c.power][0]}</b>: ${D_POWER[c.power][1]}`));
   if (c.bonus === 'none') lines.push(dhP('<b>황금 카드</b>: 보너스 색이 없어서 다음 카드의 비용을 깎아 주지 못합니다. 점수만 줍니다. 어느 색의 "한 색 점수"에도 들어가지 않습니다.'));
+  lines.push(dhP(`<span class="d-label">이 판의 비용은 티어${c.lv}의 색 섞기가 반영된 값입니다. 카드 목록의 기본 비용과 색이 다를 수 있습니다.</span>`));
   if (c.bonus === 'wild') lines.push(dhP('<b>색상 선택</b>: 산 직후, 이미 가진 카드의 색 중 하나를 골라 그 색 보너스로 씁니다. 한 번 정하면 바뀌지 않고, 그 색의 "한 색 점수"에도 들어갑니다.'));
   if (c.crowns) lines.push(dhP(`<b>왕관 ${c.crowns}개</b>: 산 카드의 왕관이 합쳐서 ${DUEL.ROYAL_AT.join('개, ')}개가 되면 왕실 카드를 받고, ${DUEL.WIN_CROWNS}개가 되면 즉시 승리합니다.`));
   return lines.join('');
@@ -435,7 +437,7 @@ function dhRefHtml() {
     sec('특권 두루마리', dhList([`두루마리는 모두 ${DUEL.SCROLLS}장입니다. 한 장 내고 판에서 <b>금이 아닌 토큰 1개</b>를 집습니다.`, '필수 행동 <b>전에만</b> 쓸 수 있고, 필수 행동으로 치지 않습니다.', '받는 때: 상대가 판을 채웠을 때, 상대가 욕심을 부렸을 때, 카드나 왕실 카드의 능력. 판 옆 더미에 없으면 상대가 가진 것을 가져옵니다.', `뒤에 두는 사람은 ${DUEL.SECOND_PLAYER_SCROLLS}장을 갖고 시작합니다.`])) +
     sec('판 채우기', dhList(['주머니의 토큰을 판의 빈 칸에 놓습니다. 필수 행동 전에 할 수 있습니다.', '<b>채우면 상대가 특권 두루마리를 받습니다.</b>', '카드 값으로 낸 토큰과 버린 토큰은 주머니로 돌아갑니다.'])) +
     sec('카드 예약', dhList([`판에 <b>금이 있을 때만</b> 합니다. 금 1개를 받습니다. 예약은 ${DUEL.RESERVE_MAX}장까지.`, '판 위의 카드 한 장(모두에게 보임) 또는 <b>덱 맨 위 카드</b>(예약한 사람만 봄)를 가져옵니다.', '예약한 카드는 나중에 내 차례에 살 수 있습니다.'])) +
-    sec('카드 구매', dhList(['비용에서 <b>같은 색 카드의 수만큼</b> 깎입니다. (카드 한 장 = 그 색 1개 할인, 영구)', '모자란 만큼은 <b>금</b>으로 대신 냅니다. 금 1개가 무엇이든 1개를 대신합니다.', '<b>진주 비용은 할인이 없고</b> 진주(또는 금)로만 냅니다.', '낸 토큰은 주머니로 돌아가고, 산 카드는 내 앞에 놓입니다.'])) +
+    sec('카드 구매', dhList(['<b>비용의 색은 판마다, 티어마다 무작위로 섞입니다.</b> 카드에 보이는 비용이 이번 판의 실제 비용이고, 보너스 색·점수·능력과 진주 비용은 그대로입니다.', '비용에서 <b>같은 색 카드의 수만큼</b> 깎입니다. (카드 한 장 = 그 색 1개 할인, 영구)', '모자란 만큼은 <b>금</b>으로 대신 냅니다. 금 1개가 무엇이든 1개를 대신합니다.', '<b>진주 비용은 할인이 없고</b> 진주(또는 금)로만 냅니다.', '낸 토큰은 주머니로 돌아가고, 산 카드는 내 앞에 놓입니다.'])) +
     sec('카드 능력', dhList(Object.keys(D_POWER).map((k) => `<b>${D_POWER[k][0]}</b>: ${D_POWER[k][1]}`).concat(['<b>색상 선택</b>: 산 뒤 이미 가진 카드의 색 중 하나를 골라 그 색으로 씁니다.']))) +
     sec('왕관과 왕실 카드', dhList([`산 카드의 왕관(♛)이 처음 <b>${R}</b>가 될 때마다 왕실 카드를 한 장 고릅니다.`, '왕실 카드는 점수가 있고, 능력이 있는 것도 있습니다.', `왕관이 ${DUEL.WIN_CROWNS}개가 되면 즉시 승리합니다.`])) +
     sec('토큰 한도', dhList([`턴이 끝났을 때 토큰은 <b>${DUEL.TOKEN_MAX}개까지</b>입니다. 넘으면 넘는 만큼 버립니다.`])) +

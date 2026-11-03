@@ -37,6 +37,30 @@ function duelRoyal(id) {
   return DUEL_ROYALS.find((r) => r.id === id) || null;
 }
 
+// 카드의 "실제 비용". 카드 목록(duel-cards.js)의 비용은 기본값이고, 판마다 티어별로 비용의 색이
+// 무작위로 섞인다 (state.costMap[티어] = { 기본 색: 이번 판의 색 }). 보너스 색, 점수, 능력, 진주 비용은
+// 그대로다. 섞기가 없는 옛 상태에서는 기본 비용을 그대로 돌려준다.
+function duelCardCost(state, id) {
+  const c = duelCard(id);
+  if (!c) return null;
+  const m = state && state.costMap ? state.costMap[c.lv] : null;
+  if (!m) return c.cost;
+  const out = {};
+  Object.keys(c.cost).forEach((k) => (out[m[k] || k] = c.cost[k]));
+  return out;
+}
+
+// 다섯 보석 색의 무작위 순열 하나 (제자리 그대로인 순열은 버려서 티어가 반드시 바뀌게 한다)
+function duelRandomColorMap(rng) {
+  const base = DUEL.COLORS;
+  let perm = base;
+  for (let t = 0; t < 30 && perm.every((c, i) => c === base[i]); t++) perm = duelShuffle(base, rng);
+  if (perm.every((c, i) => c === base[i])) perm = base.slice(1).concat(base[0]); // 어떤 rng 에도 안전하게
+  const m = {};
+  base.forEach((c, i) => (m[c] = perm[i]));
+  return m;
+}
+
 // ---- 토큰판 좌표 ----
 function duelPos(r, c) {
   return r * DUEL.SIZE + c;
@@ -147,6 +171,7 @@ function duelNewGame(opts) {
     bag,
     decks,
     pyramid,
+    costMap: { 1: null, 2: null, 3: null }, // 티어별 비용 색 섞기 (아래에서 채운다)
     royals: DUEL_ROYALS.map((r) => r.id),
     scrolls: DUEL.SCROLLS,
     players: [mkPlayer(o.names && o.names[0]), mkPlayer(o.names && o.names[1])],
@@ -159,6 +184,8 @@ function duelNewGame(opts) {
   };
 
   duelFillBoard(state, rng);
+  // 덱과 판을 뽑은 뒤에 섞는다 (같은 rng 로 만든 덱과 판의 모습은 그대로 둔다)
+  [1, 2, 3].forEach((lv) => (state.costMap[lv] = duelRandomColorMap(rng)));
   // 두 번째 플레이어에게 특권 한 장을 준다 (선공의 이점을 덜어 주려는 것) [기억]
   const second = 1 - start;
   for (let i = 0; i < DUEL.SECOND_PLAYER_SCROLLS; i++) {
@@ -166,6 +193,7 @@ function duelNewGame(opts) {
     state.players[second].scrolls += 1;
   }
   duelLog(state, `게임을 시작합니다. 선공은 ${duelName(state, start)}입니다.`);
+  duelLog(state, '이번 판은 티어마다 카드 비용의 색이 무작위로 섞였습니다. (보너스 색·점수·능력은 그대로, 진주 비용도 그대로)');
   return state;
 }
 
@@ -277,18 +305,19 @@ function duelGainScroll(state, seat) {
 function duelPayment(state, seat, cardId) {
   const card = duelCard(cardId);
   if (!card) return null;
+  const cost = duelCardCost(state, cardId); // 이번 판의 실제 비용 (색이 섞여 있다)
   const p = state.players[seat];
   const bonus = duelBonus(state, seat);
   const pay = duelEmptyTokens();
   let needGold = 0;
 
   DUEL.COLORS.forEach((col) => {
-    const need = Math.max(0, (card.cost[col] || 0) - bonus[col]);
+    const need = Math.max(0, (cost[col] || 0) - bonus[col]);
     const use = Math.min(need, p.tokens[col]);
     pay[col] = use;
     needGold += need - use;
   });
-  const needPearl = card.cost.pearl || 0; // 진주 비용에는 할인이 없다
+  const needPearl = cost.pearl || 0; // 진주 비용에는 할인이 없다
   const usePearl = Math.min(needPearl, p.tokens.pearl);
   pay.pearl = usePearl;
   needGold += needPearl - usePearl;

@@ -29,17 +29,17 @@ function duelAiValue(state, seat, id) {
 
 // 카드를 사려면 더 필요한 토큰
 function duelAiNeeds(state, seat, id) {
-  const card = duelCard(id);
+  const cost = duelCardCost(state, id); // 이번 판의 실제 비용 (색이 섞여 있다)
   const p = state.players[seat];
   const bonus = duelBonus(state, seat);
   const need = {};
   let total = 0;
   DUEL.COLORS.forEach((c) => {
-    const n = Math.max(0, (card.cost[c] || 0) - bonus[c] - p.tokens[c]);
+    const n = Math.max(0, (cost[c] || 0) - bonus[c] - p.tokens[c]);
     need[c] = n;
     total += n;
   });
-  need.pearl = Math.max(0, (card.cost.pearl || 0) - p.tokens.pearl);
+  need.pearl = Math.max(0, (cost.pearl || 0) - p.tokens.pearl);
   total += need.pearl;
   const shortage = Math.max(0, total - p.tokens.gold);
   return { need, total, shortage };
