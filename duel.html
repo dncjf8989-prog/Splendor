@@ -6,8 +6,8 @@
 <title>스플렌더 듀얼</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20261103e">
-<link rel="stylesheet" href="duel.css?v=20261103e">
+<link rel="stylesheet" href="style.css?v=20261103f">
+<link rel="stylesheet" href="duel.css?v=20261103f">
 </head>
 <body>
 <div id="app">
@@ -52,16 +52,19 @@
   <div id="dGame" hidden>
     <div id="dBanner" class="banner"></div>
     <div id="dTable">
-      <aside class="d-col" id="dMe"></aside>
+      <aside class="player-column" id="dMe"></aside>
       <div id="dCenter">
         <section id="dRoyals"></section>
         <section id="dPyramid"></section>
-        <section id="dBoardWrap">
-          <div id="dBoard"></div>
-          <div id="dControls"></div>
-        </section>
+        <div id="dBoardRow">
+          <section id="dBoardWrap">
+            <div class="bank-title">토큰판</div>
+            <div id="dBoard"></div>
+          </section>
+          <section id="dControls"></section>
+        </div>
       </div>
-      <aside class="d-col" id="dOpp"></aside>
+      <aside class="player-column" id="dOpp"></aside>
     </div>
   </div>
 
@@ -115,16 +118,16 @@
     document.write('<script src="https://unpkg.com/mqtt@5/dist/mqtt.min.js"><\/script>');
   }
 </script>
-<script src="gamepick.js?v=20261103e"></script>
-<script src="duel-cards.js?v=20261103e"></script>
-<script src="duel-engine.js?v=20261103e"></script>
-<script src="duel-ai.js?v=20261103e"></script>
-<script src="relay.js?v=20261103e"></script>
-<script src="db.js?v=20261103e"></script>
-<script src="duel-ui.js?v=20261103e"></script>
-<script src="duel-help.js?v=20261103e"></script>
-<script src="duel-stats.js?v=20261103e"></script>
-<script src="duel-net.js?v=20261103e"></script>
-<script src="quiet.js?v=20261103e"></script>
+<script src="gamepick.js?v=20261103f"></script>
+<script src="duel-cards.js?v=20261103f"></script>
+<script src="duel-engine.js?v=20261103f"></script>
+<script src="duel-ai.js?v=20261103f"></script>
+<script src="relay.js?v=20261103f"></script>
+<script src="db.js?v=20261103f"></script>
+<script src="duel-ui.js?v=20261103f"></script>
+<script src="duel-help.js?v=20261103f"></script>
+<script src="duel-stats.js?v=20261103f"></script>
+<script src="duel-net.js?v=20261103f"></script>
+<script src="quiet.js?v=20261103f"></script>
 </body>
 </html>

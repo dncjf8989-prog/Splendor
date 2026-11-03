@@ -15,7 +15,7 @@ const DUEL = {
   PER_COLOR: 4, // [기억] 색마다 4개 (보석 20 + 진주 3 + 금 2 = 25칸)
   PEARLS: 3,
   GOLDS: 2,
-  PYRAMID: { 1: 5, 2: 4, 3: 3 }, // [기억] 1단계 5장, 2단계 4장, 3단계 3장이 깔린다
+  PYRAMID: { 1: 5, 2: 4, 3: 3 }, // [기억] 티어1 5장, 티어2 4장, 티어3 3장이 깔린다
   SCROLLS: 3, // 특권 두루마리는 모두 3개
   SECOND_PLAYER_SCROLLS: 1, // [기억] 두 번째 플레이어가 특권 1개를 갖고 시작
   RESERVE_MAX: 3, // [기억]
@@ -484,7 +484,7 @@ function duelActReserve(state, seat, a, rng) {
     state.pyramid[lv][src.i] = duelDrawFromDeck(state, lv);
   } else if (src.k === 'deck') {
     lv = src.lv;
-    if (![1, 2, 3].includes(lv)) return duelFail('단계가 맞지 않습니다.');
+    if (![1, 2, 3].includes(lv)) return duelFail('티어가 맞지 않습니다.');
     if (!state.decks[lv].length) return duelFail('그 덱에는 카드가 없습니다.');
     id = duelDrawFromDeck(state, lv);
     secret = true;
@@ -498,8 +498,8 @@ function duelActReserve(state, seat, a, rng) {
   duelLog(
     state,
     secret
-      ? `${duelName(state, seat)}이(가) ${lv}단계 덱에서 한 장을 몰래 예약했습니다. (금 +1)`
-      : `${duelName(state, seat)}이(가) ${lv}단계 카드를 예약했습니다. (금 +1)`
+      ? `${duelName(state, seat)}이(가) 티어${lv} 덱에서 한 장을 몰래 예약했습니다. (금 +1)`
+      : `${duelName(state, seat)}이(가) 티어${lv} 카드를 예약했습니다. (금 +1)`
   );
   duelNote(state, seat, 'reserve', { lv, secret, id: secret ? null : id });
   state.mainDone = true;
@@ -535,7 +535,7 @@ function duelActBuy(state, seat, a, rng) {
   else p.reserved.splice(src.i, 1);
 
   const card = duelCard(id);
-  duelLog(state, `${duelName(state, seat)}이(가) ${lv}단계 카드를 샀습니다. (+${card.pts}점${card.crowns ? `, 왕관 ${card.crowns}` : ''})`);
+  duelLog(state, `${duelName(state, seat)}이(가) 티어${lv} 카드를 샀습니다. (+${card.pts}점${card.crowns ? `, 왕관 ${card.crowns}` : ''})`);
   duelNote(state, seat, 'buy', { id, lv, from: src.k === 'pyr' ? 'pyr' : 'res', paid: Object.assign({}, quote.pay) });
 
   state.mainDone = true;
@@ -750,7 +750,7 @@ function duelChoose(state, seat, a, rng) {
 }
 
 // ---- 상대에게 보여 줄 모습 ----
-// 덱과 주머니는 순서와 내용을 숨기고 개수만, 상대가 몰래 예약한 카드는 단계만 보여 준다.
+// 덱과 주머니는 순서와 내용을 숨기고 개수만, 상대가 몰래 예약한 카드는 티어만 보여 준다.
 function duelViewFor(state, seat) {
   const v = JSON.parse(JSON.stringify(state));
   v.deckN = { 1: v.decks[1].length, 2: v.decks[2].length, 3: v.decks[3].length };

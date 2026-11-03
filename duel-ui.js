@@ -90,33 +90,33 @@ function dFlash(msg) {
 
 // ---- 조각 만들기 ----
 function dTok(type, n, cls) {
-  return `<span class="d-sm gem-${type}${cls ? ' ' + cls : ''}" title="${DUEL_COLOR_LABEL[type] || type}">${n == null ? '' : n}</span>`;
+  return `<span class="gemdot d-sm gem-${type}${cls ? ' ' + cls : ''}" title="${DUEL_COLOR_LABEL[type] || type}">${n == null ? '' : n}</span>`;
 }
 
 function dCostHtml(cost) {
   const parts = [];
-  DUEL.COLORS.forEach((c) => cost[c] && parts.push(dTok(c, cost[c])));
-  if (cost.pearl) parts.push(dTok('pearl', cost.pearl));
+  DUEL.COLORS.forEach((c) => cost[c] && parts.push(`<span class="cost-icon gem-${c}" title="${DUEL_COLOR_LABEL[c]}">${cost[c]}</span>`));
+  if (cost.pearl) parts.push(`<span class="cost-icon gem-pearl" title="진주">${cost.pearl}</span>`);
   return parts.join('');
 }
 
+// 오리지널과 같은 카드 모양(card-tile)을 쓴다. d-card, d-can 은 테스트와 도우미가 찾는 표식이다.
 function dCardHtml(id, o) {
   const opt = o || {};
   const c = duelCard(id);
   const power = c.power ? `<div class="d-power" title="${dEsc(D_POWER[c.power][1])}">${D_POWER[c.power][0]}</div>` : '';
   const crowns = c.crowns ? `<span class="d-crowns" title="왕관 ${c.crowns}개">${'♛'.repeat(c.crowns)}</span>` : '';
-  const tint = c.bonus === 'wild' ? '' : ` d-tint-${c.bonus}`;
   const wild = c.bonus === 'wild' ? '<div class="d-power">와일드</div>' : '';
-  return `<div class="d-card${tint}${opt.can ? ' d-can' : ''}" data-card="${id}">
-    <div class="d-card-top"><span class="d-pts">${c.pts || ''}</span>${crowns}<span class="d-card-bonus gem-${c.bonus}" title="${c.bonus === 'wild' ? '와일드: 이미 가진 카드의 색을 따릅니다' : DUEL_COLOR_LABEL[c.bonus] + ' 보너스'}"></span></div>
+  return `<div class="card-tile gem-border-${c.bonus} d-card${opt.can ? ' affordable d-can' : ''}" data-card="${id}">
+    <div class="card-top"><span class="card-points">${c.pts || ''}</span>${crowns}<span class="card-gem gem-${c.bonus}" title="${c.bonus === 'wild' ? '와일드: 이미 가진 카드의 색을 따릅니다' : DUEL_COLOR_LABEL[c.bonus] + ' 보너스'}"></span></div>
     ${power}${wild}
-    <div class="d-cost">${dCostHtml(c.cost)}</div>
+    <div class="card-cost">${dCostHtml(c.cost)}</div>
     ${opt.buttons || ''}
   </div>`;
 }
 
 function dBackHtml(lv) {
-  return `<div class="d-card d-back"><div>몰래 예약<br><small>${lv}단계</small></div></div>`;
+  return `<div class="card-tile card-back d-card d-back" title="몰래 예약한 카드"><div class="d-back-text">몰래 예약<br><small>티어 ${lv}</small></div></div>`;
 }
 
 function dRoyalHtml(id) {
@@ -125,7 +125,17 @@ function dRoyalHtml(id) {
   return `<span class="d-royal" title="${r.power ? dEsc(D_POWER[r.power][1]) : ''}"><b>+${r.pts}</b>${power}</span>`;
 }
 
+function dRoyalTileHtml(id) {
+  const r = duelRoyal(id);
+  const power = r.power ? D_POWER[r.power][0] : '점수만';
+  return `<div class="noble-tile d-royal-tile" data-royal="${id}" title="${r.power ? dEsc(D_POWER[r.power][1]) : '점수만 받습니다'}">
+    <div class="noble-points">+${r.pts}</div>
+    <div class="d-royal-power">${power}</div>
+  </div>`;
+}
+
 // ---- 플레이어 패널 ----
+// 오리지널의 플레이어 패널(player-panel)과 같은 구성. 듀얼에만 있는 것(왕관, 특권, 왕실, 승리 진행)을 덧붙인다.
 function dPanelHtml(v, seat) {
   const p = v.players[seat];
   const me = seat === DAPP.seat;
@@ -137,9 +147,9 @@ function dPanelHtml(v, seat) {
   const bestCol = DUEL.COLORS.slice().sort((a, b) => cp[b] - cp[a])[0];
   const total = duelTokenTotal(p);
 
-  const tokens = DUEL.TOKEN_TYPES.filter((t) => p.tokens[t] > 0).map((t) => dTok(t, p.tokens[t])).join('') || '<em class="d-label">없음</em>';
-  const bonuses = DUEL.COLORS.map((c) => `<span class="d-bonus-chip" style="${bonus[c] ? '' : 'opacity:.4'}" title="${DUEL_COLOR_LABEL[c]} 카드 ${bonus[c]}장, ${cp[c]}점">${dTok(c, bonus[c])}${cp[c]}점</span>`).join('');
-  const scrolls = p.scrolls ? '📜'.repeat(p.scrolls) : '<span class="d-label">없음</span>';
+  const tokens = DUEL.TOKEN_TYPES.filter((t) => p.tokens[t] > 0).map((t) => dTok(t, p.tokens[t])).join('') || '<em>없음</em>';
+  const bonuses = DUEL.COLORS.filter((c) => bonus[c] > 0).map((c) => `<span class="gemdot d-sm gem-${c}" title="${DUEL_COLOR_LABEL[c]} 카드 ${bonus[c]}장, ${cp[c]}점">${bonus[c]}</span>`).join('') || '<em>없음</em>';
+  const scrolls = p.scrolls ? `<span class="d-scroll" title="특권 두루마리 ${p.scrolls}장">특권 ×${p.scrolls}</span>` : '<em>없음</em>';
 
   let reserved = '';
   const mine = me && dFreeTurn(v) && !v.mainDone;
@@ -150,56 +160,55 @@ function dPanelHtml(v, seat) {
     }
     if (me) {
       const q = duelPayment(v, seat, r.id);
-      const buy = `<div class="d-card-btns"><button type="button" data-act="buy" data-k="res" data-i="${i}" ${mine && q ? '' : 'disabled'}>구매</button></div>`;
+      const buy = `<div class="card-actions d-card-btns"><button type="button" data-act="buy" data-k="res" data-i="${i}" ${mine && q ? '' : 'disabled'}>구매</button></div>`;
       reserved += dCardHtml(r.id, { buttons: buy, can: mine && !!q });
     } else {
       reserved += dCardHtml(r.id);
     }
   });
-  const royals = p.royals.length ? p.royals.map(dRoyalHtml).join(' ') : '<span class="d-label">없음</span>';
+  const royals = p.royals.length ? p.royals.map(dRoyalHtml).join(' ') : '<em>없음</em>';
+  const stars = p.royals.map(() => '<span class="noble-mini">★</span>').join('');
 
-  return `<div class="d-panel${isTurn ? ' d-turn' : ''}">
-    <h3>${dEsc(p.name || (me ? '나' : '상대'))}
-      ${me ? '<span class="d-tag on">나</span>' : ''}
-      ${v.start === seat ? '<span class="d-tag">선공</span>' : ''}
-      ${isTurn ? '<span class="d-tag on">지금 차례</span>' : ''}
-    </h3>
-    <div class="d-stat"><div><b>${pts}</b><span> 점</span></div><div><b>${crowns}</b><span> 왕관</span></div><div title="특권 두루마리">${scrolls}</div></div>
+  return `<div class="player-panel d-panel${isTurn ? ' active d-turn' : ''}" data-seat="${seat}">
+    <h3>${dEsc(p.name || (me ? '나' : '상대'))}${me ? ' <span class="you-tag">나</span>' : ''} <span class="order-tag">${v.start === seat ? '선공' : '후공'}</span>${isTurn ? '<span class="turn-tag">현재 턴</span>' : ''}</h3>
+    <div class="player-points">점수: ${pts}점 · 왕관 ${crowns}개 ${stars}</div>
     <div class="d-goal">승리: 점수 <b>${pts}/${DUEL.WIN_POINTS}</b> · 왕관 <b>${crowns}/${DUEL.WIN_CROWNS}</b> · 한 색 <b>${cp[bestCol]}/${DUEL.WIN_COLOR}</b>${cp[bestCol] ? `(${DUEL_COLOR_LABEL[bestCol]})` : ''}</div>
-    <div class="d-row"><span class="d-label">토큰 <span class="${total > DUEL.TOKEN_MAX ? 'd-over' : ''}">${total}/${DUEL.TOKEN_MAX}</span></span>${tokens}</div>
-    <div class="d-row"><span class="d-label">카드</span>${bonuses}</div>
-    <div class="d-row"><span class="d-label">왕실</span>${royals}</div>
-    <div class="d-label" style="margin-top:6px">예약 카드 (${p.reserved.length}/${DUEL.RESERVE_MAX})</div>
-    <div class="d-reserved">${reserved}</div>
+    <div class="player-row"><span class="row-label">보유 토큰 <span class="token-count${total >= DUEL.TOKEN_MAX ? ' token-full' : ''}">(${total}/${DUEL.TOKEN_MAX})</span></span><span class="row-items">${tokens}</span></div>
+    <div class="player-row"><span class="row-label">카드 보너스</span><span class="row-items">${bonuses}</span></div>
+    <div class="player-row"><span class="row-label">특권 두루마리</span><span class="row-items">${scrolls}</span></div>
+    <div class="player-row"><span class="row-label">왕실 카드</span><span class="row-items">${royals}</span></div>
+    <div class="player-row"><span class="row-label">예약 카드 (${p.reserved.length}/${DUEL.RESERVE_MAX})</span></div>
+    <div class="reserved-cards d-reserved">${reserved}</div>
   </div>`;
 }
 
 // ---- 가운데: 왕실 카드, 피라미드, 토큰판 ----
 function dRoyalsHtml(v) {
-  const list = v.royals.map(dRoyalHtml).join(' ');
-  return `<span class="d-royal-label">남은 왕실 카드 (왕관 3개, 6개가 되면 한 장씩)</span>${list || '<span class="d-label">모두 가져갔습니다</span>'}`;
+  const tiles = v.royals.map(dRoyalTileHtml).join('');
+  return `${tiles || '<span class="d-label">왕실 카드를 모두 가져갔습니다</span>'}<div class="d-royal-label">남은 왕실 카드 · 왕관이 ${DUEL.ROYAL_AT.join('개, ')}개가 되면 한 장씩 받습니다</div>`;
 }
 
+// 오리지널의 티어 배치(tier-label + tier-cards)와 같다. 티어마다 카드 수만 5/4/3장이다.
 function dPyramidHtml(v) {
   const free = dFreeTurn(v) && !v.mainDone;
   const canRes = free && duelCanReserve(v, DAPP.seat);
   let html = '';
   [3, 2, 1].forEach((lv) => {
     const n = v.deckN[lv];
-    const deckBtn = `<button type="button" data-act="deck" data-lv="${lv}" ${canRes && n > 0 ? '' : 'disabled'} title="덱 맨 위 카드를 보지 않고 예약합니다">덱에서 예약</button>`;
+    const deckBtn = `<button type="button" class="deck-reserve" data-act="deck" data-lv="${lv}" ${canRes && n > 0 ? '' : 'disabled'} title="덱 맨 위 카드를 보지 않고 예약합니다. 상대는 무엇인지 모릅니다.">덱에서 예약</button>`;
     let cards = '';
     v.pyramid[lv].forEach((id, i) => {
       if (id === null) {
-        cards += '<div class="d-card d-empty"></div>';
+        cards += '<div class="card-tile empty d-card d-empty"></div>';
         return;
       }
       const q = duelPayment(v, DAPP.seat, id);
-      const buttons = `<div class="d-card-btns">
+      const buttons = `<div class="card-actions d-card-btns">
         <button type="button" data-act="buy" data-k="pyr" data-lv="${lv}" data-i="${i}" ${free && q ? '' : 'disabled'}>구매</button>
         <button type="button" data-act="reserve" data-lv="${lv}" data-i="${i}" ${canRes ? '' : 'disabled'}>예약</button></div>`;
       cards += dCardHtml(id, { buttons, can: free && !!q });
     });
-    html += `<div class="d-level"><div class="d-deck"><div>${lv}단계</div><b>${n}</b><div>장 남음</div>${deckBtn}</div>${cards}</div>`;
+    html += `<div class="tier" data-lv="${lv}"><div class="tier-label">티어 ${lv} <span class="deck-count">(남은 덱: ${n})</span> ${deckBtn}</div><div class="tier-cards">${cards}</div></div>`;
   });
   if (dCardsAreTemp()) {
     html += '<div class="d-note">※ 카드 구성은 임시입니다. 실제 상자의 카드와 다릅니다.</div>';
@@ -225,21 +234,26 @@ function dBoardHtml(v) {
   return html;
 }
 
+// 오리지널의 "가져올 보석: 확정/취소" 줄과 같은 모양. 고른 토큰이 칩으로 보이고 ✕로 하나씩 뺄 수 있다.
 function dControlsHtml(v) {
   const me = v.players[DAPP.seat];
   const free = dFreeTurn(v) && !v.mainDone;
   const canRep = free && v.bagN > 0 && v.board.includes(null);
-  let html = '';
+  const sel = DAPP.sel;
+  const chips = sel.map((p) => `<button type="button" class="pending-chip gem-${v.board[p]}" data-act="unsel" data-pos="${p}">${DUEL_COLOR_LABEL[v.board[p]]} ✕</button>`).join('');
+  let html = `<div class="d-pending"><span class="d-pending-label">가져올 토큰:</span><div class="d-pending-chips">${chips}</div>
+    <button type="button" data-act="take" ${sel.length && free ? '' : 'disabled'}>확정</button>
+    <button type="button" data-act="cancel" ${sel.length ? '' : 'disabled'}>취소</button></div>`;
+  html += '<div class="d-extra">';
   html += `<button type="button" data-act="priv" class="${DAPP.priv ? 'd-on' : ''}" ${free && me.scrolls > 0 ? '' : 'disabled'} title="특권을 한 장 내고 판에서 원하는 보석이나 진주 1개를 집습니다 (금 제외)">특권 사용 (${me.scrolls})</button>`;
   html += `<button type="button" data-act="replenish" ${canRep ? '' : 'disabled'} title="주머니의 토큰으로 빈 칸을 채웁니다. 상대가 특권을 받습니다.">판 채우기</button>`;
-  if (DAPP.sel.length) {
-    const types = DAPP.sel.map((p) => v.board[p]);
-    const greedy = duelTakeIsGreedy(types);
-    html += `<button type="button" data-act="take" class="d-on">${DAPP.sel.length}개 가져오기</button>`;
-    html += '<button type="button" data-act="cancel">선택 취소</button>';
-    html += `<div class="d-hint ${greedy ? 'd-warn' : ''}">${types.map((t) => DUEL_COLOR_LABEL[t]).join(', ')}${greedy ? ' — 같은 색 3개/진주 2개는 상대가 특권을 받습니다' : ''}</div>`;
-  } else if (free && duelStuck(v, DAPP.seat)) {
+  if (!sel.length && free && duelStuck(v, DAPP.seat)) {
     html += '<button type="button" data-act="pass" class="d-on">둘 수 있는 수가 없어 넘기기</button>';
+  }
+  html += '</div>';
+  if (sel.length) {
+    const types = sel.map((p) => v.board[p]);
+    if (duelTakeIsGreedy(types)) html += '<div class="d-hint d-warn">같은 색 3개/진주 2개는 상대가 특권을 받습니다</div>';
   }
   return html;
 }
@@ -255,11 +269,10 @@ function dBannerText(v) {
     if (v.choice.seat !== DAPP.seat) return `${dEsc(opp.name)}이(가) 선택하는 중입니다.`;
     return { wild: '와일드 카드의 색을 고르세요.', royal: '가져올 왕실 카드를 고르세요.', steal: '상대에게서 가져올 토큰을 고르세요.', pick: '가져올 칸을 판에서 고르세요. (점선 표시)', discard: `토큰이 ${DUEL.TOKEN_MAX}개를 넘었습니다. ${v.choice.n}개를 버리세요.` }[v.choice.type] || '선택하세요.';
   }
-  if (v.turn !== DAPP.seat) return `${dEsc(opp.name)}의 차례를 기다리는 중입니다.`;
+  if (v.turn !== DAPP.seat) return DAPP.mode === 'single' ? 'AI가 생각하는 중입니다...' : `${dEsc(opp.name)}(상대방)의 차례를 기다리는 중입니다.`;
   if (v.mainDone) return '마무리하는 중입니다.';
   if (DAPP.priv) return '특권을 쓸 칸을 고르세요. (금 제외)';
-  const extra = v.extra ? '' : '';
-  return `내 차례입니다. 보석을 일직선으로 1~3개 집거나, 카드를 사거나 예약하세요. (먼저 특권 사용이나 판 채우기는 해도 됩니다)${extra}`;
+  return `당신의 차례입니다. (목표: 점수 ${DUEL.WIN_POINTS}점 · 왕관 ${DUEL.WIN_CROWNS}개 · 한 색 ${DUEL.WIN_COLOR}점)`;
 }
 
 function dRenderBanner() {
@@ -273,7 +286,7 @@ function dRenderBanner() {
 function dRenderLog(v) {
   const el = document.getElementById('dLog');
   if (!el) return;
-  el.innerHTML = `<div class="d-label">진행 기록</div><ul>${v.log.slice(0, 14).map((l) => `<li>${dEsc(l)}</li>`).join('')}</ul>`;
+  el.innerHTML = `<div class="log-title">진행 기록</div><ul>${v.log.slice(0, 14).map((l) => `<li>${dEsc(l)}</li>`).join('')}</ul>`;
 }
 
 // ---- 창 ----
@@ -548,6 +561,9 @@ function dOnAct(el) {
     }
     case 'cancel':
       DAPP.sel = [];
+      return dRender();
+    case 'unsel':
+      DAPP.sel = DAPP.sel.filter((p) => p !== Number(el.dataset.pos));
       return dRender();
     case 'pass':
       return dDo({ t: 'pass' });

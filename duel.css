@@ -1,10 +1,11 @@
 /* ============ 스플렌더 듀얼 화면 ============ */
-/* 바탕 색과 글꼴은 style.css 의 변수를 그대로 쓴다. 그래서 저채도 모드도 같이 따라온다. */
+/* 모양은 오리지널(style.css)의 카드, 플레이어 패널, 귀족 타일, 은행, 진행 기록을 그대로 쓴다.
+   그래서 오리지널과 한 가지 양식이고, 저채도 모드도 같이 따라온다.
+   여기에는 듀얼에만 있는 것(진주, 와일드, 능력 줄, 5x5 토큰판, 왕실 카드)만 둔다. */
 
 :root {
   --gem-pearl: #ece6f5;
   --gem-pearl-fg: #4a4560;
-  --d-card-w: 92px;
 }
 :root[data-quiet] {
   --gem-pearl: #dcdcdc;
@@ -28,129 +29,82 @@
 :root[data-quiet] .gem-pearl { background: var(--gem-pearl); }
 :root[data-quiet] .gem-wild { background: #8a8a8a; }
 
-/* ---- 두 게임을 오가는 탭 (오리지널 / 듀얼) ---- */
 #dModeTabs { display: flex; gap: 8px; margin: 0 0 12px; flex-wrap: wrap; }
 
-/* ---- 전체 배치 ---- */
+/* ---- 전체 배치: 오리지널의 #tableLayout 과 같다 ---- */
 #dGame[hidden], #dStart[hidden], #dNetPanel[hidden], #dChatPanel[hidden], #dLog[hidden] { display: none; }
 #dStart { display: block; }
 #dTable {
   display: grid;
-  grid-template-columns: 230px minmax(0, 1fr) 230px;
-  gap: 14px;
+  grid-template-columns: minmax(200px, 230px) minmax(0, 1fr) minmax(200px, 230px);
+  gap: 12px;
   align-items: start;
+  margin-bottom: 12px;
 }
-#dCenter { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
-.d-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+#dCenter { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+#dCenter > section { margin-bottom: 0; }
+#dBanner { margin-bottom: 12px; }
+.d-flash-msg { color: var(--gem-red); font-weight: 700; }
 
-/* ---- 플레이어 패널 ---- */
-.d-panel {
-  border: 1px solid var(--border);
-  background: var(--panel);
-  border-radius: 10px;
-  padding: 12px;
-  font-size: 13px;
-}
-.d-panel.d-turn { border-color: var(--accent); box-shadow: 0 0 0 3px var(--active-ring); }
-.d-panel h3 { margin: 0 0 6px; font-size: 15px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.d-tag {
-  font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px;
-  border: 1px solid var(--border); color: var(--muted); background: transparent;
-}
-.d-tag.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
-.d-stat { display: flex; gap: 12px; flex-wrap: wrap; margin: 4px 0 8px; }
-.d-stat b { font-size: 18px; }
-.d-stat span { color: var(--muted); font-size: 12px; }
-.d-goal { font-size: 11px; color: var(--muted); line-height: 1.6; margin-bottom: 8px; }
-.d-goal b { color: var(--text); }
-.d-row { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin: 6px 0; }
-.d-label { font-size: 11px; color: var(--muted); min-width: 52px; }
-.d-sm {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 24px; height: 24px; padding: 0 4px; border-radius: 50%;
-  font-size: 12px; font-weight: 700; border: 1px solid var(--chip-border);
-}
-.d-bonus-chip {
-  display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
-  border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px 1px 2px; color: var(--muted);
-}
-.d-bonus-chip .d-sm { min-width: 20px; height: 20px; font-size: 11px; }
-.d-over { color: var(--gem-red); font-weight: 700; }
-.d-reserved { display: flex; gap: 6px; flex-wrap: wrap; }
-
-/* ---- 카드 ---- */
-.d-card {
-  position: relative;
-  width: var(--d-card-w);
-  min-height: 112px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 6px 5px;
-  background: var(--card-bg);
-  display: flex; flex-direction: column; gap: 3px;
-  font-size: 12px;
-}
-.d-card.d-tint-white { background: var(--card-tint-white); }
-.d-card.d-tint-blue { background: var(--card-tint-blue); }
-.d-card.d-tint-green { background: var(--card-tint-green); }
-.d-card.d-tint-red { background: var(--card-tint-red); }
-.d-card.d-tint-black { background: var(--card-tint-black); }
-.d-card.d-can { border-color: var(--accent); box-shadow: 0 0 0 2px var(--active-ring); }
-.d-card.d-empty { background: repeating-linear-gradient(45deg, var(--card-empty-a), var(--card-empty-a) 6px, var(--card-empty-b) 6px, var(--card-empty-b) 12px); border-style: dashed; }
-.d-card.d-back { background: var(--card-empty-b); align-items: center; justify-content: center; color: var(--muted); text-align: center; }
-.d-card-top { display: flex; align-items: center; gap: 4px; min-height: 22px; }
-.d-pts { font-size: 18px; font-weight: 900; line-height: 1; min-width: 12px; }
-.d-crowns { font-size: 11px; color: var(--accent); letter-spacing: -1px; }
-.d-card-bonus { margin-left: auto; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--chip-border); }
-.d-power { font-size: 10px; font-weight: 700; color: var(--accent); }
-.d-cost { display: flex; flex-wrap: wrap; gap: 3px; margin-top: auto; }
-.d-cost .d-sm { min-width: 20px; height: 20px; font-size: 11px; }
-.d-card-btns { display: flex; gap: 3px; margin-top: 3px; }
-.d-card-btns button { flex: 1; padding: 3px 0; font-size: 11px; border-radius: 5px; }
-
-/* ---- 왕실 카드 ---- */
-#dRoyals { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* ---- 왕실 카드 = 오리지널의 귀족 타일 ---- */
+#dRoyals { display: flex; justify-content: center; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.d-royal-tile { text-align: center; }
+.d-royal-power { font-size: 10px; color: var(--muted); line-height: 1.2; }
+.d-royal-label { flex-basis: 100%; text-align: center; font-size: 11px; color: var(--muted); margin-top: -4px; }
 .d-royal {
-  border: 1px solid var(--accent); border-radius: 8px; padding: 5px 9px;
-  background: var(--noble-bg); font-size: 12px;
+  display: inline-block; border: 1px solid var(--gem-gold); border-radius: 6px;
+  padding: 1px 6px; background: var(--noble-bg); font-size: 11px;
 }
-.d-royal b { font-size: 14px; }
-.d-royal-label { font-size: 11px; color: var(--muted); margin-right: 4px; }
 
-/* ---- 카드 피라미드 ---- */
-#dPyramid { display: flex; flex-direction: column; gap: 8px; align-items: center; }
-.d-level { display: flex; gap: 8px; align-items: stretch; justify-content: center; }
-.d-deck {
-  width: 74px; min-height: 112px; border: 1px dashed var(--border); border-radius: 8px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-  font-size: 11px; color: var(--muted); text-align: center; padding: 4px;
-}
-.d-deck b { font-size: 15px; color: var(--text); }
-.d-deck button { font-size: 10px; padding: 3px 4px; border-radius: 5px; }
-.d-note { font-size: 11px; color: var(--muted); text-align: center; }
+/* ---- 카드: 오리지널 카드(card-tile)에 듀얼에만 있는 줄을 얹는다 ---- */
+.d-power { font-size: 10px; font-weight: 700; color: var(--accent); line-height: 1.2; }
+.d-crowns { font-size: 11px; color: var(--accent); letter-spacing: -1px; }
+.card-tile.gem-border-wild { border-color: var(--gem-gold); background: var(--noble-bg); }
+.card-gem.gem-wild { border-color: var(--gem-gold); }
+.card-tile.card-back { align-items: center; justify-content: center; }
+.d-back-text { text-align: center; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.card-tile.d-help-pick, .d-help-pick { outline: 3px dashed var(--accent); outline-offset: 2px; }
 
-/* ---- 토큰판 ---- */
-#dBoardWrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+/* ---- 플레이어 패널에 듀얼에만 있는 것 ---- */
+.d-goal { font-size: 11px; color: var(--muted); line-height: 1.5; margin: -2px 0 8px; }
+.d-goal b { color: var(--text); }
+.d-scroll { font-size: 12px; font-weight: 700; }
+.player-points .noble-mini { margin-left: 2px; }
+.d-note { font-size: 11px; color: var(--muted); text-align: center; margin-top: 8px; }
+
+/* ---- 카드 칸: 오리지널 #board 와 같은 상자 ---- */
+#dPyramid { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+
+/* ---- 토큰판(공용판): 오리지널 #bank 와 같은 상자. 눈에 덜 띄게 작은 칸으로 ---- */
+#dBoardRow { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+#dBoardWrap { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px; flex: 0 0 auto; }
 #dBoard {
-  display: grid; grid-template-columns: repeat(5, 46px); gap: 6px;
-  padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel);
+  display: grid; grid-template-columns: repeat(5, 30px); gap: 4px; justify-content: center;
 }
 .d-cell {
-  width: 46px; height: 46px; border-radius: 50%; padding: 0;
-  border: 2px solid var(--chip-border); font-weight: 700; font-size: 11px;
+  width: 30px; height: 30px; border-radius: 6px; padding: 0;
+  border: 1px solid var(--chip-border); font-weight: 700; font-size: 9px;
   display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
 .d-cell.d-none { border: 1px dashed var(--border); background: transparent; cursor: default; opacity: 0.5; }
-.d-cell.d-sel { outline: 3px solid var(--accent); outline-offset: 1px; transform: scale(1.06); }
-.d-cell.d-opt { outline: 3px dashed var(--gem-red); outline-offset: 1px; }
-.d-cell.d-priv { outline: 3px dotted var(--accent); outline-offset: 1px; }
+.d-cell.d-sel { outline: 2px solid var(--accent); outline-offset: 1px; transform: scale(1.06); }
+.d-cell.d-opt { outline: 2px dashed var(--gem-red); outline-offset: 1px; }
+.d-cell.d-priv { outline: 2px dotted var(--accent); outline-offset: 1px; }
 .d-cell:disabled { opacity: 1; cursor: default; }
 .d-cell:hover:not(:disabled):not(.d-none) { border-color: var(--accent); }
 .d-cell.d-flash { animation: dFlash 0.9s ease-out; }
-@keyframes dFlash { 0% { box-shadow: 0 0 0 0 var(--accent); } 100% { box-shadow: 0 0 0 14px transparent; } }
+@keyframes dFlash { 0% { box-shadow: 0 0 0 0 var(--accent); } 100% { box-shadow: 0 0 0 10px transparent; } }
 
-#dControls { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; }
-#dControls .d-hint { flex-basis: 100%; text-align: center; font-size: 12px; color: var(--muted); }
+/* ---- 가져올 토큰 줄: 오리지널 #controls 와 같은 상자 ---- */
+#dControls {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+  flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; gap: 8px; justify-content: center;
+}
+.d-pending { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.d-pending-label { font-size: 13px; color: var(--muted); }
+.d-pending-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.d-extra { display: flex; gap: 8px; flex-wrap: wrap; }
+#dControls .d-hint { font-size: 12px; color: var(--muted); }
 #dControls .d-warn { color: var(--gem-red); }
 #dControls button.d-on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 
@@ -160,12 +114,11 @@
 #dBottom:not(:has(> :not([hidden]))) { display: none; } /* 기록도 채팅도 없으면 자리를 차지하지 않는다 */
 #dBottom:has(#dLog[hidden]) { grid-template-columns: 1fr; }
 #dLog {
-  border: 1px solid var(--border); background: var(--panel); border-radius: 8px;
-  padding: 10px 12px; font-size: 12px; max-height: 180px; overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; max-height: 100px; overflow-y: auto;
 }
-#dLog ul { list-style: none; margin: 0; padding: 0; }
-#dLog li { margin-bottom: 3px; line-height: 1.45; color: var(--muted); }
-#dLog li:first-child { color: var(--text); }
+#dLog ul { margin: 0; padding-left: 18px; font-size: 12px; }
+#dLog li { margin-bottom: 2px; }
 #dChatPanel {
   display: flex; flex-direction: column; min-width: 0; background: var(--panel);
   border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
@@ -176,10 +129,6 @@
 #dChatForm { display: flex; gap: 6px; }
 #dChatInput { flex: 1 1 auto; min-width: 0; padding: 7px 9px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
 
-/* ---- 안내 줄 ---- */
-#dBanner { margin-bottom: 12px; }
-.d-flash-msg { color: var(--gem-red); font-weight: 700; }
-
 /* ---- 창 안의 선택 ---- */
 .d-pick { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 12px 0; }
 .d-pick button { min-width: 74px; }
@@ -189,52 +138,62 @@
 .d-rules h4 { margin: 12px 0 4px; font-size: 13px; }
 .d-rules ul { margin: 0 0 6px 18px; padding: 0; }
 .d-rules .d-fine { color: var(--muted); font-size: 12px; }
+.d-label { font-size: 11px; color: var(--muted); }
+.d-over { color: var(--gem-red); font-weight: 700; }
 .d-rank-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .d-rank-table td, .d-rank-table th { padding: 6px 4px; border-bottom: 1px solid var(--border); text-align: left; }
 .d-rank-table th { font-size: 11px; color: var(--muted); font-weight: 500; }
 .d-rank-me { background: var(--active-ring); }
+.d-stat { display: flex; gap: 12px; flex-wrap: wrap; margin: 4px 0 8px; }
+.d-stat b { font-size: 18px; }
+.d-stat span { color: var(--muted); font-size: 12px; }
+.d-panel h3 { margin: 0 0 6px; }
+.d-tag {
+  font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--muted); background: transparent;
+}
+.d-tag.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.d-row { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin: 6px 0; }
 
-/* ---- 좁은 화면 ---- */
-@media (max-width: 900px) {
-  #dTable { grid-template-columns: 1fr; }
-  #dOpp { order: 1; }
-  #dCenter { order: 2; }
-  #dMe { order: 3; }
+/* ---- 좁은 화면: 오리지널과 같은 방식 (가운데를 위로, 두 플레이어를 나란히) ---- */
+@media (max-width: 1000px) {
+  #dTable { grid-template-columns: 1fr 1fr; }
+  #dCenter { grid-column: 1 / -1; order: -1; }
   #dBottom { grid-template-columns: 1fr; }
-  .d-col { flex-direction: column; }
 }
 @media (max-width: 640px) {
-  /* 1단계 줄: 덱 더미 44px + 카드 5장 + 틈 4px*5 + 양쪽 여백 32px 이 화면 안에 들어와야 한다 */
-  :root { --d-card-w: min(66px, calc((100vw - 100px) / 5)); }
-  .d-card { padding: 4px; font-size: 10px; min-height: 96px; }
-  .d-pts { font-size: 15px; }
-  .d-sm { min-width: 20px; height: 20px; font-size: 11px; }
-  .d-cost .d-sm { min-width: 16px; height: 16px; font-size: 9px; }
-  .d-card-bonus { width: 16px; height: 16px; }
-  .d-deck { width: 44px; min-height: 96px; font-size: 9px; }
-  .d-level { gap: 4px; }
-  #dBoard { grid-template-columns: repeat(5, 40px); gap: 5px; padding: 8px; }
-  .d-cell { width: 40px; height: 40px; }
-  .d-card-btns button { font-size: 10px; }
+  #dTable { grid-template-columns: 1fr; }
+  /* 티어마다 카드 5장이 한 줄에 들어가야 한다: 앱 여백 32 + 상자 여백 20 + 상자 테두리 2 + 카드 사이 16, 소수점 여유 4 */
+  #dPyramid .tier-cards { gap: 4px; flex-wrap: nowrap; }
+  #dPyramid .card-tile { width: calc((100vw - 74px) / 5); min-height: 100px; padding: 4px; gap: 4px; }
+  #dPyramid .card-points { font-size: 13px; }
+  #dPyramid .card-gem { width: 14px; height: 14px; }
+  #dPyramid .cost-icon { width: 16px; height: 16px; font-size: 9px; }
+  #dPyramid .card-actions button { font-size: 10px; padding: 3px 0; }
+  #dRoyals { gap: 8px; }
+  .d-cell { width: 28px; height: 28px; }
+  #dBoard { grid-template-columns: repeat(5, 28px); }
+  #dBoardWrap { flex: 1 1 100%; }
 }
 
-/* ---- 저채도 ---- */
-:root[data-quiet] .d-panel,
-:root[data-quiet] .d-card,
-:root[data-quiet] .d-royal,
-:root[data-quiet] .d-deck,
-:root[data-quiet] #dBoard,
+/* ---- 저채도: 오리지널과 같은 규칙을 듀얼의 상자들에도 ---- */
+:root[data-quiet] #dPyramid,
+:root[data-quiet] #dBoardWrap,
+:root[data-quiet] #dControls,
 :root[data-quiet] #dLog,
 :root[data-quiet] #dChatPanel,
 :root[data-quiet] #dChatInput,
-:root[data-quiet] .d-card-btns button { border-radius: 2px; }
-:root[data-quiet] .d-card.d-tint-white,
-:root[data-quiet] .d-card.d-tint-blue,
-:root[data-quiet] .d-card.d-tint-green,
-:root[data-quiet] .d-card.d-tint-red,
-:root[data-quiet] .d-card.d-tint-black { background: #ffffff; }
+:root[data-quiet] .d-cell,
+:root[data-quiet] .d-royal { border-radius: 2px; }
+:root[data-quiet] #dPyramid { padding: 12px 10px; }
+:root[data-quiet] .card-tile.gem-border-wild { background: #ffffff; }
 :root[data-quiet] .d-royal { background: #f7f7f5; border-color: var(--border); }
-:root[data-quiet] .d-panel.d-turn { box-shadow: none; }
+:root[data-quiet] .d-cell.gem-white { box-shadow: inset 0 3px 0 var(--gem-white-edge); }
+:root[data-quiet] .d-cell.gem-blue { box-shadow: inset 0 3px 0 var(--gem-blue); }
+:root[data-quiet] .d-cell.gem-green { box-shadow: inset 0 3px 0 var(--gem-green); }
+:root[data-quiet] .d-cell.gem-red { box-shadow: inset 0 3px 0 var(--gem-red); }
+:root[data-quiet] .d-cell.gem-black { box-shadow: inset 0 3px 0 var(--gem-black); }
+:root[data-quiet] .d-cell.gem-gold { box-shadow: inset 0 3px 0 var(--gem-gold); }
 :root[data-quiet] .d-tag.on { background: #6c6c6c; border-color: #6c6c6c; }
 
 /* ============ 규칙 도우미 ============ */

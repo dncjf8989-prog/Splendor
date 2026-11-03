@@ -51,10 +51,10 @@ function dHelpMin() {
 
 // ---- 연습 과제: 해 본 것에 체크한다 ----
 const D_HELP_TASKS = [
-  { id: 'take', label: '토큰 가져오기', how: '토큰판에서 이어진 1~3칸(가로·세로·대각선)을 눌러 고르고 "가져오기"를 누르세요.' },
+  { id: 'take', label: '토큰 가져오기', how: '토큰판에서 이어진 1~3칸(가로·세로·대각선)을 눌러 고르고 "확정"을 누르세요.' },
   { id: 'priv', label: '특권 쓰기', how: '특권 두루마리가 있을 때 "특권 사용"을 누르고, 판에서 금이 아닌 토큰 1개를 고르세요. 필수 행동 전에만 쓸 수 있습니다.' },
   { id: 'replenish', label: '판 채우기', how: '"판 채우기"를 누르면 주머니의 토큰이 빈 칸을 채웁니다. 대신 상대가 특권을 받습니다.' },
-  { id: 'reserve', label: '카드 예약', how: '카드의 "예약", 또는 단계 옆 "덱에서 예약"을 누르세요. 판의 금 1개를 받습니다.' },
+  { id: 'reserve', label: '카드 예약', how: '카드의 "예약", 또는 티어 옆 "덱에서 예약"을 누르세요. 판의 금 1개를 받습니다.' },
   { id: 'buy', label: '카드 구매', how: '테두리가 강조된 카드의 "구매"를 누르세요. 산 카드는 이후 같은 색 비용을 영구히 깎아 줍니다.' },
   { id: 'power', label: '능력 카드 사기', how: '카드 위쪽에 능력(한 번 더, 보석 1개, 특권, 훔치기)이 적힌 카드를 사 보세요.' },
   { id: 'royal', label: '왕실 카드 받기', how: `산 카드의 왕관(♛)이 합쳐서 ${DUEL.ROYAL_AT.join('개, ')}개가 되면 왕실 카드를 한 장씩 고릅니다.` },
@@ -166,7 +166,7 @@ function dhCardHtml(v, id) {
   if (v.players[1 - seat].cards.includes(id)) where.push('상대가 산 카드');
   if (v.players[1 - seat].reserved.some((r) => r.id === id)) where.push('상대의 예약');
 
-  const head = `${c.lv}단계 · ${c.bonus === 'wild' ? '와일드' : DUEL_COLOR_LABEL[c.bonus] + ' 보너스'} · ${c.pts}점${c.crowns ? ` · 왕관 ${c.crowns}개` : ''}`;
+  const head = `티어${c.lv} · ${c.bonus === 'wild' ? '와일드' : DUEL_COLOR_LABEL[c.bonus] + ' 보너스'} · ${c.pts}점${c.crowns ? ` · 왕관 ${c.crowns}개` : ''}`;
   const lines = [];
   lines.push(`<b>${head}</b>${where.length ? ` <span class="d-label">(${where.join(', ')})</span>` : ''}`);
 
@@ -216,12 +216,12 @@ function dhLast(v) {
       return `${who} 토큰판을 채웠습니다. 판을 채우면 <b>${gets} 특권 두루마리를 받습니다</b>.`;
     case 'reserve':
       return l.secret
-        ? `${who} ${l.lv}단계 덱의 맨 위 카드를 <b>몰래</b> 예약했습니다. 금 1개를 받았고, 어떤 카드인지는 예약한 사람만 압니다.`
-        : `${who} ${l.lv}단계 카드를 예약하고 금 1개를 받았습니다.`;
+        ? `${who} 티어${l.lv} 덱의 맨 위 카드를 <b>몰래</b> 예약했습니다. 금 1개를 받았고, 어떤 카드인지는 예약한 사람만 압니다.`
+        : `${who} 티어${l.lv} 카드를 예약하고 금 1개를 받았습니다.`;
     case 'buy': {
       const c = duelCard(l.id);
       if (!c) return `${who} 카드를 샀습니다.`;
-      const bits = [`${c.lv}단계 카드를 샀습니다 (+${c.pts}점${c.crowns ? `, 왕관 ${c.crowns}` : ''})`];
+      const bits = [`티어${c.lv} 카드를 샀습니다 (+${c.pts}점${c.crowns ? `, 왕관 ${c.crowns}` : ''})`];
       if (c.power) bits.push(`능력 "${D_POWER[c.power][0]}": ${D_POWER[c.power][1].replace(/\.$/, '')}`);
       return `${who} ${bits.join(' · ')}.`;
     }
@@ -393,7 +393,7 @@ function dhFree(v) {
 
   return {
     tone: 'go',
-    summary: DAPP.priv ? '특권: 금이 아닌 토큰 1개를 고르세요' : sel.length ? `${sel.length}개 선택 — "가져오기"를 누르세요` : '내 차례 — 필수 행동 1개: 가져오기 · 예약 · 구매',
+    summary: DAPP.priv ? '특권: 금이 아닌 토큰 1개를 고르세요' : sel.length ? `${sel.length}개 선택 — "확정"을 누르세요` : '내 차례 — 필수 행동 1개: 가져오기 · 예약 · 구매',
     html: dhSection('내 차례', steps + doing + stuckNote) + dhSection('지금 상태', status) + (no.length ? dhSection('지금 못 하는 것', dhList(no)) : '') + dhLastSec(v),
   };
 }
