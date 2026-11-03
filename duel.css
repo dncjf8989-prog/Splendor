@@ -4,29 +4,33 @@
    여기에는 듀얼에만 있는 것(진주, 와일드, 능력 줄, 5x5 토큰판, 왕실 카드)만 둔다. */
 
 :root {
-  --gem-pearl: #ece6f5;
-  --gem-pearl-fg: #4a4560;
+  /* 진주: 다이아몬드(흰색, 크림)와 헷갈리지 않게 분명한 보라로 둔다. 흰 링은 색을 못 보는 경우를 위한 두 번째 단서. */
+  --gem-pearl: #b58ce0;
+  --gem-pearl-fg: #24103f;
+  --gem-pearl-hi: #f6ecff;
+  --gem-pearl-lo: #8052bd;
 }
 :root[data-quiet] {
-  --gem-pearl: #dcdcdc;
-  --gem-pearl-fg: #444;
+  --gem-pearl: #a99cc6; /* 저채도에서도 흰색(회색빛 베이지)보다 분명히 보라빛이 돈다 */
+  --gem-pearl-fg: #2a2440;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not([data-quiet]) {
-    --gem-pearl: #cfc6e3;
-    --gem-pearl-fg: #2b2740;
+    --gem-pearl: #b58ce0;
+    --gem-pearl-fg: #24103f;
   }
 }
 
 .gem-pearl {
-  background: radial-gradient(circle at 35% 30%, #ffffff, var(--gem-pearl) 58%, #c9bfe0);
+  background: radial-gradient(circle at 35% 30%, var(--gem-pearl-hi), var(--gem-pearl) 55%, var(--gem-pearl-lo));
   color: var(--gem-pearl-fg);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.8);
 }
 .gem-wild {
   background: conic-gradient(var(--gem-white), var(--gem-blue), var(--gem-green), var(--gem-red), var(--gem-black), var(--gem-white));
   color: #fff;
 }
-:root[data-quiet] .gem-pearl { background: var(--gem-pearl); }
+:root[data-quiet] .gem-pearl { background: var(--gem-pearl); box-shadow: inset 0 0 0 2px #ffffff; }
 :root[data-quiet] .gem-wild { background: #8a8a8a; }
 
 #dModeTabs { display: flex; gap: 8px; margin: 0 0 12px; flex-wrap: wrap; }
