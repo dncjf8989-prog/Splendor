@@ -74,6 +74,9 @@
 .d-goal { font-size: 11px; color: var(--muted); line-height: 1.5; margin: -2px 0 8px; }
 .d-goal b { color: var(--text); }
 .d-scroll { font-size: 12px; font-weight: 700; }
+.d-bonus { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.d-bonus.d-best { color: var(--text); font-weight: 700; border: 1px solid var(--accent); border-radius: 999px; padding: 1px 7px 1px 1px; }
+:root[data-quiet] .d-bonus.d-best { border-radius: 2px; }
 .player-points .noble-mini { margin-left: 2px; }
 .d-note { font-size: 11px; color: var(--muted); text-align: center; margin-top: 8px; }
 

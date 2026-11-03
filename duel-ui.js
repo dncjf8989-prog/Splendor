@@ -150,7 +150,8 @@ function dPanelHtml(v, seat) {
   const total = duelTokenTotal(p);
 
   const tokens = DUEL.TOKEN_TYPES.filter((t) => p.tokens[t] > 0).map((t) => dTok(t, p.tokens[t])).join('') || '<em>없음</em>';
-  const bonuses = DUEL.COLORS.filter((c) => bonus[c] > 0).map((c) => `<span class="gemdot d-sm gem-${c}" title="${DUEL_COLOR_LABEL[c]} 카드 ${bonus[c]}장, ${cp[c]}점">${bonus[c]}</span>`).join('') || '<em>없음</em>';
+  // 칩의 숫자는 카드 장수, 옆의 "N점"은 그 색 카드의 점수 합이다. "한 색 10점" 승리는 이 점수 합으로 센다.
+  const bonuses = DUEL.COLORS.filter((c) => bonus[c] > 0).map((c) => `<span class="d-bonus${c === bestCol && cp[c] > 0 ? ' d-best' : ''}" title="${DUEL_COLOR_LABEL[c]} 카드 ${bonus[c]}장, 점수 합 ${cp[c]}점"><span class="gemdot d-sm gem-${c}">${bonus[c]}</span><span class="d-bonus-pts">${cp[c]}점</span></span>`).join('') || '<em>없음</em>';
   const scrolls = p.scrolls ? `<span class="d-scroll" title="특권 두루마리 ${p.scrolls}장">특권 ×${p.scrolls}</span>` : '<em>없음</em>';
 
   let reserved = '';
@@ -174,7 +175,7 @@ function dPanelHtml(v, seat) {
   return `<div class="player-panel d-panel${isTurn ? ' active d-turn' : ''}" data-seat="${seat}">
     <h3>${dEsc(p.name || (me ? '나' : '상대'))}${me ? ' <span class="you-tag">나</span>' : ''} <span class="order-tag">${v.start === seat ? '선공' : '후공'}</span>${isTurn ? '<span class="turn-tag">현재 턴</span>' : ''}</h3>
     <div class="player-points">점수: ${pts}점 · 왕관 ${crowns}개 ${stars}</div>
-    <div class="d-goal">승리: 점수 <b>${pts}/${DUEL.WIN_POINTS}</b> · 왕관 <b>${crowns}/${DUEL.WIN_CROWNS}</b> · 한 색 <b>${cp[bestCol]}/${DUEL.WIN_COLOR}</b>${cp[bestCol] ? `(${DUEL_COLOR_LABEL[bestCol]})` : ''}</div>
+    <div class="d-goal">승리: 점수 <b>${pts}/${DUEL.WIN_POINTS}</b> · 왕관 <b>${crowns}/${DUEL.WIN_CROWNS}</b> · 한 색 <b>${cp[bestCol]}/${DUEL.WIN_COLOR}</b>${cp[bestCol] ? ` (${DUEL_COLOR_LABEL[bestCol]} 카드 점수 합)` : ''}</div>
     <div class="player-row"><span class="row-label">보유 토큰 <span class="token-count${total >= DUEL.TOKEN_MAX ? ' token-full' : ''}">(${total}/${DUEL.TOKEN_MAX})</span></span><span class="row-items">${tokens}</span></div>
     <div class="player-row"><span class="row-label">카드 보너스</span><span class="row-items">${bonuses}</span></div>
     <div class="player-row"><span class="row-label">특권 두루마리</span><span class="row-items">${scrolls}</span></div>
