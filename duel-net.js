@@ -707,6 +707,13 @@ function dnRenderNet() {
 
   if (st === 'idle') {
     el.innerHTML = `<div class="net-box">
+      <div class="game-pick">
+        <div class="game-pick-label">게임 고르기 (방을 만들거나 들어가기 전에 먼저 고릅니다)</div>
+        <div class="game-switch" role="group" aria-label="게임 선택">
+          <a class="game-opt" href="index.html?mode=online">스플렌더 오리지널 <small>2~4인</small></a>
+          <span class="game-opt active" aria-current="true">스플렌더 듀얼 <small>2인</small></span>
+        </div>
+      </div>
       <div class="net-row"><label for="dnNick">내 닉네임</label>
         <input id="dnNick" maxlength="12" placeholder="플레이어" value="${dEsc(nick)}" autocomplete="off"></div>
       <div class="net-row">
@@ -726,7 +733,10 @@ function dnRenderNet() {
     return;
   }
   if (st === 'error') {
-    el.innerHTML = `<div class="net-box net-warn">${dEsc(DNET.errorMsg)}<br><button type="button" data-dn="retry">처음으로</button></div>`;
+    const otherGame = DNET.role === 'guest'
+      ? '<div class="net-sub">오리지널 방의 코드라면 "처음으로"를 누른 뒤 위에서 <b>스플렌더 오리지널</b>을 고르세요.</div>'
+      : '';
+    el.innerHTML = `<div class="net-box net-warn">${dEsc(DNET.errorMsg)}${otherGame}<br><button type="button" data-dn="retry">처음으로</button></div>`;
     return;
   }
   if (st === 'waiting') {

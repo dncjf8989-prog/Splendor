@@ -1242,6 +1242,13 @@ function renderNetPanelBody() {
 
   if (NET.status === 'idle') {
     el.innerHTML = `<div class="net-box">
+      <div class="game-pick">
+        <div class="game-pick-label">게임 고르기 (방을 만들거나 들어가기 전에 먼저 고릅니다)</div>
+        <div class="game-switch" role="group" aria-label="게임 선택">
+          <span class="game-opt active" aria-current="true">스플렌더 오리지널 <small>2~4인</small></span>
+          <a class="game-opt" href="duel.html?mode=online">스플렌더 듀얼 <small>2인</small></a>
+        </div>
+      </div>
       <div class="net-row">
         <button data-net-act="create">${selectedPlayerCount}인 방 만들기</button>
         <span class="net-or">또는</span>
@@ -1271,8 +1278,12 @@ function renderNetPanelBody() {
     const watchBtn = NET.canSpectateFull && NET.lastCode
       ? `<button data-net-act="spectateLast">관전으로 들어가기</button>`
       : '';
+    const otherGame = NET.role === 'guest'
+      ? '<div class="net-sub">듀얼 방의 코드라면 "다시 시도"를 누른 뒤 위에서 <b>스플렌더 듀얼</b>을 고르세요.</div>'
+      : '';
     el.innerHTML = `<div class="net-box net-warn">
       ${escapeHtml(NET.errorMsg)}
+      ${otherGame}
       <br>${watchBtn}<button data-net-act="retry">다시 시도</button>
       <button data-net-act="diag">진단하기</button>
     </div>`;
@@ -1390,6 +1401,11 @@ document.addEventListener('DOMContentLoaded', () => {
       netJoinRoom(e.target.value);
     }
   });
+
+  // 듀얼 쪽 로비에서 "스플렌더 오리지널"을 골라 넘어왔으면 온라인 대전 로비부터 연다.
+  try {
+    if (new URLSearchParams(location.search).get('mode') === 'online') appStart('online');
+  } catch (e) { /* 주소를 못 읽으면 평소대로 시작 화면 */ }
 
   updateModeTabs();
 

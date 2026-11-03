@@ -7,6 +7,8 @@
 | 스플렌더 오리지널 (2~4인) | `index.html` | `/games` 의 일반 항목 |
 | 스플렌더 듀얼 (2인 전용) | `duel.html` | `/games` 의 `k:'duel'` 항목 (오리지널 전적과 따로 센다) |
 
+두 게임은 온라인 대전 로비 맨 위의 "게임 고르기"로 오간다. 오리지널에서 듀얼을 고르면 `duel.html?mode=online` 로, 듀얼에서 오리지널을 고르면 `index.html?mode=online` 로 넘어가 해당 게임의 온라인 대전 로비가 열린다. 방 코드는 게임마다 따로(`splendor-lite-` / `splendor-duel-`) 쓰므로, 참가하는 쪽도 같은 게임을 골라야 한다.
+
 ## 스플렌더 듀얼
 
 - 파일: `duel.html` `duel.css` `duel-engine.js`(규칙) `duel-ai.js`(혼자 연습 상대) `duel-ui.js` `duel-net.js`(온라인) `duel-stats.js`(전적) `duel-cards.js`(카드 목록)

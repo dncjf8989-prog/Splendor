@@ -624,5 +624,9 @@ document.addEventListener('DOMContentLoaded', () => {
       dRender();
     }
   });
+  // 오리지널 쪽 로비에서 "스플렌더 듀얼"을 골라 넘어왔으면 온라인 대전 로비부터 연다.
+  try {
+    if (new URLSearchParams(location.search).get('mode') === 'online') dSetMode('online');
+  } catch (e) { /* 주소를 못 읽으면 평소대로 시작 화면 */ }
   dRender();
 });
