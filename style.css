@@ -1243,6 +1243,13 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .game-switch a.game-opt:hover { color: var(--text); background: var(--bg); }
 .game-switch .game-opt.active { background: var(--accent); color: var(--accent-fg); }
 .game-switch a.game-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* 방 안에서 게임을 바꾸는 칸: 방장은 누르는 버튼, 나머지는 눌리지 않는 칸 */
+.game-switch button.game-opt { font: inherit; font-size: 13px; font-weight: 700; background: transparent; border: 0; color: var(--muted); cursor: pointer; }
+.game-switch button.game-opt:hover { color: var(--text); background: var(--bg); }
+.game-switch button.game-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.game-switch .game-opt.disabled { opacity: 0.55; cursor: default; }
+.room-hop { margin: 4px 0 10px; }
+.room-hop .net-sub { margin-top: 6px; }
 
 /* ============ 저채도 모드 ============
    사무실에서 멀리서 보면 눈에 띄는 건 넓은 색면과 둥근 모서리다. 그 둘을

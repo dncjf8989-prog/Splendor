@@ -37,6 +37,9 @@ const DNET = {
   chat: [],
   draftCode: '',
   draftNick: null,
+  hop: null, // 게임을 바꿔 넘어온 직후의 방 이동 정보 { role, code, at }
+  hopTimer: null,
+  hopping: null, // 방장이 지금 바꾸러 가는 게임 (넘어가기 직전까지만 있다)
 };
 window.DNET = DNET;
 
@@ -80,6 +83,10 @@ function dnClearTimer() {
 function dnFailAfterTimeout(msgFn) {
   dnClearTimer();
   DNET.timer = setTimeout(() => {
+    if (DNET.status === 'connecting' && roomHopCanRetry(DNET.hop)) {
+      dnHopRetryJoin(DNET.code);
+      return;
+    }
     if (DNET.status === 'creating' || DNET.status === 'connecting') {
       DNET.status = 'error';
       DNET.errorMsg = msgFn();
@@ -189,6 +196,10 @@ function dnCleanup() {
 }
 
 function dnResetToLobby() {
+  DNET.hop = null;
+  DNET.hopping = null;
+  clearTimeout(DNET.hopTimer);
+  DNET.hopTimer = null;
   DNET.status = 'idle';
   DNET.errorMsg = '';
   DNET.code = '';
@@ -221,7 +232,8 @@ function dnRecordAbandoned(leaverSeat, keepalive) {
 }
 
 // ---- 방장 ----
-function dnCreateRoom() {
+// fixedCode: 게임을 바꿔 넘어온 방장이 원래 방 코드를 그대로 쓰려고 줄 때만 있다
+function dnCreateRoom(fixedCode) {
   if (!dnAvailable()) {
     DNET.status = 'error';
     DNET.errorMsg = '이 브라우저에서는 온라인 대전을 사용할 수 없습니다.';
@@ -230,7 +242,7 @@ function dnCreateRoom() {
   }
   DNET.status = 'creating';
   DNET.role = 'host';
-  DNET.code = dnRandomCode();
+  DNET.code = fixedCode || dnRandomCode();
   DNET.link = null;
   DNET.pending = [];
   DNET.chat = [];
@@ -253,7 +265,8 @@ function dnCreateRoom() {
       () => {
         dnClearTimer();
         DNET.status = 'waiting';
-        dnChatSystem('방을 열었습니다. 방 코드를 상대에게 알려 주세요.');
+        dnChatSystem(DNET.hop ? '스플렌더 듀얼로 게임을 바꿨습니다. 같은 방 코드입니다.' : '방을 열었습니다. 방 코드를 상대에게 알려 주세요.');
+        DNET.hop = null;
         dRender();
       }
     );
@@ -279,6 +292,12 @@ function dnHostHandle(conn, msg) {
   if (msg.type === 'hello') {
     const profile = dnSanitizeProfile(msg.profile);
     if (!profile) return;
+    // 게임을 바꿔 넘어온 손님이 방장보다 먼저 두드릴 수 있다. 방이 열리는 중이면 잠시 뒤에 다시 본다.
+    if (DNET.status === 'creating' && (msg._n || 0) < 40) {
+      msg._n = (msg._n || 0) + 1;
+      setTimeout(() => dnHostHandle(conn, msg), 250);
+      return;
+    }
     const pi = DNET.pending.indexOf(conn);
     if (pi >= 0) {
       DNET.pending.splice(pi, 1);
@@ -465,6 +484,10 @@ function dnJoinRoom(rawCode) {
   });
   peer.on('error', (err) => {
     dnClearTimer();
+    if (roomHopCanRetry(DNET.hop)) {
+      dnHopRetryJoin(code);
+      return;
+    }
     DNET.status = 'error';
     DNET.errorMsg = err && err.type === 'peer-unavailable'
       ? '방장이 응답하지 않습니다. 방 코드가 맞는지, 방장이 방을 열어둔 상태인지 확인해 주세요.'
@@ -483,8 +506,14 @@ function dnGuestHandle(msg) {
 
   if (msg.type === 'welcome') {
     DNET.status = 'waiting';
-    dnChatSystem(`${dnChatClean(msg.host) || '방장'}님의 방에 들어왔습니다. 방장이 시작하기를 기다려 주세요.`);
+    dnChatSystem(DNET.hop ? `스플렌더 듀얼로 게임을 바꿨습니다. ${dnChatClean(msg.host) || '방장'}님의 같은 방입니다.` : `${dnChatClean(msg.host) || '방장'}님의 방에 들어왔습니다. 방장이 시작하기를 기다려 주세요.`);
+    DNET.hop = null;
+    clearTimeout(DNET.hopTimer);
     dRender();
+    return;
+  }
+  if (msg.type === 'hop') {
+    dnGuestHop(msg);
     return;
   }
   if (msg.type === 'full') {
@@ -629,6 +658,54 @@ function dnGuestHostGone() {
   dRender();
 }
 
+// ---- 방 그대로 게임 바꾸기 (roomhop.js) ----
+const dnHopAttr = (game) => `data-dn="hop-${game}"`;
+
+// 판이 없을 때만 바꿀 수 있다: 대기방, 그리고 판이 끝난 방.
+function dnCanHop() {
+  return DNET.role === 'host' && (DNET.status === 'waiting' || (DNET.status === 'active' && !dnGameLive()));
+}
+
+// 방장이 다른 게임으로 바꾼다. 들어와 있는 손님에게 알리고, 같은 방 코드로 그 게임 페이지에서 방을 다시 연다.
+function dnHopTo(game) {
+  if (!dnCanHop() || game === 'duel' || !GAMEPICK[game]) return;
+  const code = DNET.code;
+  if (DNET.link) dnSend(DNET.link.conn, { type: 'hop', game, code });
+  DNET.status = 'connecting'; // 알림이 나갈 때까지 아무것도 못 누르게 한다
+  DNET.hopping = game;
+  dRender();
+  setTimeout(() => roomHopGo(game, 'host', code), DNET.link ? ROOMHOP_SEND_MS : 0);
+}
+
+// 방장이 게임을 바꿨다는 알림. 방장이 보낸 것만, 판이 없을 때만 따른다.
+function dnGuestHop(msg) {
+  if (DNET.role !== 'guest' || dnGameLive()) return;
+  const game = String(msg.game || '');
+  if (game === 'duel' || !GAMEPICK[game] || String(msg.code || '').toUpperCase() !== DNET.code) return;
+  roomHopGo(game, 'guest', DNET.code);
+}
+
+// 게임을 바꿔 넘어온 직후에 부른다 (주소의 ?hop=host|guest&room=코드)
+function dnStartHop(hop) {
+  DNET.hop = hop;
+  if (hop.role === 'host') dnCreateRoom(hop.code);
+  else dnJoinRoom(hop.code);
+}
+
+// 방장이 아직 새 페이지에서 방을 안 열었을 수 있다. 조금 쉬었다가 다시 두드린다.
+function dnHopRetryJoin(code) {
+  dnCleanup();
+  DNET.status = 'connecting';
+  DNET.role = 'guest';
+  DNET.code = code;
+  dRender();
+  clearTimeout(DNET.hopTimer);
+  DNET.hopTimer = setTimeout(() => {
+    DNET.hopTimer = null;
+    if (DNET.hop && DNET.status === 'connecting') dnJoinRoom(code);
+  }, ROOMHOP_RETRY_MS);
+}
+
 // ---- 나가기 / 다시 시작 ----
 function dnLeaveRoom(silent) {
   const conn = DNET.link && DNET.link.conn;
@@ -721,7 +798,8 @@ function dnRenderNet() {
     return;
   }
   if (st === 'creating' || st === 'connecting') {
-    el.innerHTML = `<div class="net-box"><div>${st === 'creating' ? '방을 만드는 중...' : '연결하는 중...'}</div>
+    const hopNote = DNET.hopping ? `${GAMEPICK[DNET.hopping].name}(으)로 게임을 바꾸는 중...` : DNET.hop && DNET.hop.role === 'guest' ? '방장이 게임을 바꿨습니다. 같은 방으로 다시 들어가는 중...' : DNET.hop ? '게임을 바꿔 같은 방 코드로 방을 여는 중...' : '';
+    el.innerHTML = `<div class="net-box"><div>${hopNote || (st === 'creating' ? '방을 만드는 중...' : '연결하는 중...')}</div>
       <div class="net-sub">잠시만 기다려 주세요. 오래 걸리면 취소하고 다시 시도해 보세요.</div>
       <button type="button" data-dn="cancel">취소</button></div>`;
     return;
@@ -740,12 +818,14 @@ function dnRenderNet() {
         <div class="room-code-label">방 코드</div><div class="room-code">${dEsc(DNET.code)}</div>
         <div class="lobby-list"><span class="lobby-chip">${dEsc(dMyName())} (방장)</span>${joined ? `<span class="lobby-chip">${dEsc(joined)}</span>` : ''}</div>
         <div class="net-sub">${joined ? '상대가 들어왔습니다. 준비되면 시작하세요.' : '상대가 들어오기를 기다리는 중입니다. 위의 방 코드를 알려 주세요.'}</div>
+        ${roomHopPickHtml('duel', true, '', dnHopAttr)}
         <button type="button" class="net-start" data-dn="start" ${joined ? '' : 'disabled'}>시작하기</button>
         <button type="button" class="net-leave" data-dn="leave">방 닫기</button>
       </div>`;
     } else {
       el.innerHTML = `<div class="net-box"><div class="room-code-label">방 코드 ${dEsc(DNET.code)}</div>
         <div class="net-sub">방장이 시작하기를 누르기를 기다리는 중입니다.</div>
+        ${roomHopPickHtml('duel', false, '', dnHopAttr)}
         <button type="button" class="net-leave" data-dn="leave">나가기</button></div>`;
     }
     return;
@@ -754,7 +834,7 @@ function dnRenderNet() {
   const opp = DNET.profiles ? DNET.profiles[1 - DAPP.seat] : null;
   el.innerHTML = `<div class="net-strip">
     <span>온라인 · 방 코드 <b>${dEsc(DNET.code)}</b> · 나: ${dEsc(dMyName())} (${DNET.role === 'host' ? '방장' : '참가자'}) · 상대: ${dEsc(opp ? opp.name : '')}</span>
-    <button type="button" class="net-leave" data-dn="leave">나가기</button></div>`;
+    <button type="button" class="net-leave" data-dn="leave">나가기</button></div>${DAPP.S && DAPP.S.over ? `<div class="net-box">${roomHopPickHtml('duel', DNET.role === 'host', '', dnHopAttr)}</div>` : ''}`;
 }
 
 function dnSetMode(mode) {
@@ -809,6 +889,8 @@ function dnOnClick(act) {
       return dRender();
     case 'leave':
       return dnLeaveRequested();
+    case 'hop-original':
+      return dnHopTo('original');
     default:
       return undefined;
   }

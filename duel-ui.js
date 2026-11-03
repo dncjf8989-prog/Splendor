@@ -409,6 +409,7 @@ function dResultHtml(v) {
     <table class="d-rank-table"><thead><tr><th>플레이어</th><th>점수</th><th>왕관</th><th>한 색 최고</th><th>카드</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="result-actions">
       ${again ? `<button class="result-primary" type="button" data-act="again">${label}</button>` : '<button class="result-primary" type="button" disabled>방장을 기다리는 중</button>'}
+      ${typeof dnCanHop === 'function' && DAPP.mode === 'online' && dnCanHop() ? `<button type="button" data-dn="hop-original">${GAMEPICK.original.name}(으)로 바꾸기</button>` : ''}
       <button type="button" data-act="close-result">닫기</button>
     </div>`;
 }
@@ -723,7 +724,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const startPick = document.getElementById('dStartPick');
   if (startPick && typeof gamePickHtml === 'function') startPick.innerHTML = gamePickHtml('duel', 'start');
   // 오리지널 쪽에서 "스플렌더 듀얼"을 골라 넘어왔으면 그 화면(혼자 연습/온라인 로비)부터 연다.
+  // 다른 게임에서 방을 그대로 두고 넘어왔으면(?hop=host|guest&room=코드) 같은 코드로 방을 다시 열거나 다시 들어간다.
+  const hop = typeof roomHopIncoming === 'function' ? roomHopIncoming() : null;
   const incoming = typeof gamePickIncomingMode === 'function' ? gamePickIncomingMode() : null;
   if (incoming) dSetMode(incoming);
+  if (hop && typeof dnStartHop === 'function') dnStartHop(hop);
   dRender();
 });

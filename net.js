@@ -46,6 +46,11 @@ const NET = {
   hbAhead: 0, // 게스트: 연달아 "내가 앞섰다"고 본 횟수
   lastResyncHb: -9, // 게스트: 마지막으로 다시 받아달라고 한 때의 hbCount
   resyncing: false, // 게스트: 다시 맞추는 중 (끝나면 한 줄 알린다)
+
+  // ---- 방 그대로 게임 바꾸기 (roomhop.js) ----
+  hop: null, // 게임을 바꿔 넘어온 직후의 방 이동 정보 { role, code, at }
+  hopTimer: null,
+  hopping: null, // 방장이 지금 바꾸러 가는 게임 (넘어가기 직전까지만 있다)
 };
 // game.js는 window.NET으로 존재 여부를 확인하므로 전역 객체에 명시적으로 노출한다.
 // (top-level const는 window의 프로퍼티가 되지 않는다.)
@@ -77,6 +82,10 @@ function netFailAfterTimeout(getMsg) {
   netClearTimer();
   NET.timer = setTimeout(() => {
     if (NET.status !== 'connecting' && NET.status !== 'creating') return;
+    if (NET.status === 'connecting' && roomHopCanRetry(NET.hop)) {
+      netHopRetryJoin(NET.hop.code);
+      return;
+    }
     netCleanupPeer();
     NET.status = 'error';
     NET.errorMsg = getMsg();
@@ -412,7 +421,8 @@ function netHostRestartGame() {
 }
 
 // ============ 호스트 ============
-function netCreateRoom() {
+// fixedCode: 게임을 바꿔 넘어온 방장이 원래 방 코드를 그대로 쓰려고 줄 때만 있다
+function netCreateRoom(fixedCode) {
   if (!netAvailable()) {
     NET.status = 'error';
     NET.errorMsg = '이 브라우저에서는 온라인 대전을 사용할 수 없습니다.';
@@ -422,7 +432,7 @@ function netCreateRoom() {
   NET.status = 'creating';
   renderNetPanel();
 
-  const code = netRandomRoomCode();
+  const code = fixedCode || netRandomRoomCode();
   NET.mode = 'online';
   NET.role = 'host';
   NET.roomCode = code;
@@ -451,6 +461,10 @@ function netCreateRoom() {
       () => {
         netClearTimer();
         NET.status = 'waiting';
+        if (NET.hop) {
+          chatSystem('스플렌더 오리지널로 게임을 바꿨습니다. 같은 방 코드입니다.');
+          NET.hop = null;
+        }
         netUpdateLobby();
       }
     );
@@ -770,6 +784,10 @@ function netJoinRoom(rawCode, spectate) {
 
   peer.on('error', (err) => {
     netClearTimer();
+    if (roomHopCanRetry(NET.hop)) {
+      netHopRetryJoin(code);
+      return;
+    }
     if (err && err.type === 'peer-unavailable') {
       NET.status = 'error';
       NET.errorMsg = '방장이 응답하지 않습니다. 방 코드가 맞는지, 방장이 방을 열어둔 상태인지 확인해 주세요.';
@@ -784,12 +802,20 @@ function netJoinRoom(rawCode, spectate) {
 function netGuestHandle(msg) {
   if (!msg || !msg.type) return;
 
+  if (msg.type === 'hop') {
+    netGuestHop(msg);
+    return;
+  }
+
   if (msg.type === 'welcome') {
     // 관전으로 받아들여졌으면 자리는 없다. 방장이 알려준 대로 따른다.
     NET.spectator = !!msg.spectator;
     NET.seat = NET.spectator ? null : msg.seat;
     NET.roomSize = msg.roomSize;
     NET.status = 'waiting';
+    if (NET.hop && !NET.spectator) chatSystem('스플렌더 오리지널로 게임을 바꿨습니다. 같은 방입니다.');
+    NET.hop = null;
+    clearTimeout(NET.hopTimer);
     if (NET.spectator) chatSystem('관전으로 들어왔습니다. 대전에는 참여하지 않습니다.');
     renderNetPanel();
     return;
@@ -1058,7 +1084,92 @@ function netPageHide(persisted) {
   else netSendToHost({ type: 'left' });
 }
 
+// ============ 방 그대로 게임 바꾸기 (roomhop.js) ============
+// 판이 없을 때만 바꿀 수 있다: 대기방, 그리고 판이 끝난 방. 관전자는 따라가지 않는다.
+const netHopAttr = (game) => `data-net-act="hop-${game}"`;
+
+function netClearHop() {
+  NET.hop = null;
+  NET.hopping = null;
+  clearTimeout(NET.hopTimer);
+  NET.hopTimer = null;
+}
+
+function netCanHop() {
+  return NET.role === 'host' && !NET.spectator && (NET.status === 'waiting' || (NET.status === 'active' && !!G && !!G.gameOver));
+}
+
+// 듀얼은 2명만 하고 관전이 없다. 사람이 더 있으면 바꿀 수 없다.
+function netHopBlocked() {
+  const players = NET.role === 'host' ? 1 + NET.links.length : NET.lobby.length || 1;
+  if (players > 2) return `듀얼은 2명만 할 수 있어서 바꿀 수 없습니다. (지금 ${players}명이 들어와 있습니다)`;
+  if (NET.role === 'host' && NET.watchers.length) return '관전하는 사람이 있어 듀얼로 바꿀 수 없습니다. (듀얼에는 관전이 없습니다)';
+  return '';
+}
+
+// 판이 끝나거나 새 판이 시작되면 방 패널을 다시 그린다 (끝난 방에서 게임을 바꾸는 칸이 나타나고 사라지게)
+function netOnRender() {
+  const over = !!(G && G.gameOver);
+  if (NET.mode === 'online' && NET.status === 'active' && over !== NET.overShown) {
+    NET.overShown = over;
+    renderNetPanel();
+  }
+}
+
+// 방장이 다른 게임으로 바꾼다. 들어와 있는 사람에게 알리고, 같은 방 코드로 그 게임 페이지에서 방을 다시 연다.
+function netHopTo(game) {
+  if (!netCanHop() || game === 'original' || !GAMEPICK[game]) return;
+  if (netHopBlocked()) {
+    renderNetPanel();
+    return;
+  }
+  const code = NET.roomCode;
+  NET.links.forEach((l) => netSendTo(l.conn, { type: 'hop', game, code }));
+  const n = NET.links.length;
+  NET.status = 'connecting'; // 알림이 나갈 때까지 아무것도 못 누르게 한다
+  NET.hopping = game;
+  renderNetPanel();
+  setTimeout(() => roomHopGo(game, 'host', code), n ? ROOMHOP_SEND_MS : 0);
+}
+
+// 방장이 게임을 바꿨다는 알림. 방장이 보낸 것만, 판이 없을 때만 따른다.
+function netGuestHop(msg) {
+  if (NET.role !== 'guest' || NET.spectator) return;
+  if (NET.status === 'active' && G && !G.gameOver) return;
+  const game = String(msg.game || '');
+  if (game === 'original' || !GAMEPICK[game] || String(msg.code || '').toUpperCase() !== NET.roomCode) return;
+  roomHopGo(game, 'guest', NET.roomCode);
+}
+
+// 게임을 바꿔 넘어온 직후에 부른다 (주소의 ?hop=host|guest&room=코드)
+function netStartHop(hop) {
+  NET.hop = hop;
+  if (hop.role === 'host') {
+    selectedPlayerCount = 2; // 듀얼에서 넘어온 방은 두 명이다
+    updateModeTabs();
+    netCreateRoom(hop.code);
+  } else {
+    netJoinRoom(hop.code);
+  }
+}
+
+// 방장이 아직 새 페이지에서 방을 안 열었을 수 있다. 조금 쉬었다가 다시 두드린다.
+function netHopRetryJoin(code) {
+  netCleanupPeer();
+  NET.mode = 'online';
+  NET.role = 'guest';
+  NET.roomCode = code;
+  NET.status = 'connecting';
+  renderNetPanel();
+  clearTimeout(NET.hopTimer);
+  NET.hopTimer = setTimeout(() => {
+    NET.hopTimer = null;
+    if (NET.hop && NET.status === 'connecting') netJoinRoom(code);
+  }, ROOMHOP_RETRY_MS);
+}
+
 function netLeaveRoom() {
+  netClearHop();
   if (NET.role === 'host') {
     netBroadcast({ type: 'peerLeft', name: netMyProfile().name, id: netMyProfile().id, left: true });
   }
@@ -1071,6 +1182,7 @@ function netLeaveRoom() {
 }
 
 function netRetry() {
+  netClearHop();
   netCleanupPeer();
   NET.status = 'idle';
   NET.errorMsg = '';
@@ -1267,8 +1379,9 @@ function renderNetPanelBody() {
   }
 
   if (NET.status === 'creating' || NET.status === 'connecting') {
+    const hopNote = NET.hopping ? `${GAMEPICK[NET.hopping].name}(으)로 게임을 바꾸는 중...` : NET.hop && NET.hop.role === 'guest' ? '방장이 게임을 바꿨습니다. 같은 방으로 다시 들어가는 중...' : NET.hop ? '게임을 바꿔 같은 방 코드로 방을 여는 중...' : '';
     el.innerHTML = `<div class="net-box">
-      <div>${NET.status === 'creating' ? '방을 만드는 중...' : '연결하는 중...'}</div>
+      <div>${hopNote || (NET.status === 'creating' ? '방을 만드는 중...' : '연결하는 중...')}</div>
       <div class="net-sub">잠시만 기다려 주세요. 오래 걸리면 취소하고 다시 시도해 보세요.</div>
       <button data-net-act="cancel">취소</button>
     </div>`;
@@ -1316,6 +1429,7 @@ function renderNetPanelBody() {
         <div class="net-sub">${ready
           ? '다 모였습니다. 관전할 사람까지 들어온 뒤에 시작하세요.'
           : '인원이 다 차면 시작할 수 있습니다.'}</div>
+        ${roomHopPickHtml('original', true, netHopBlocked(), netHopAttr)}
         <div class="net-row">
           <button class="net-start" data-net-act="start" ${ready ? '' : 'disabled'}>시작하기</button>
           <button data-net-act="leave">방 나가기</button>
@@ -1326,6 +1440,7 @@ function renderNetPanelBody() {
         <div class="room-code-label">방 코드 ${NET.roomCode}</div>
         ${roster}
         <div class="net-sub">${joined} / ${NET.roomSize}명 참가${watchLine} · 방장이 시작하기를 기다리는 중...</div>
+        ${roomHopPickHtml('original', false, '', netHopAttr)}
         <button data-net-act="leave">방 나가기</button>
       </div>`;
     }
@@ -1345,7 +1460,7 @@ function renderNetPanelBody() {
     el.innerHTML = `<div class="net-strip">
       온라인 ${NET.roomSize}인 대전 · 방 코드 <strong>${NET.roomCode}</strong> · 나: 플레이어 ${NET.seat + 1} (${roleLabel})${watchLine}
       <button class="net-leave" data-net-act="leave">나가기</button>
-    </div>`;
+    </div>${G && G.gameOver ? `<div class="net-box">${roomHopPickHtml('original', NET.role === 'host', NET.role === 'host' ? netHopBlocked() : '', netHopAttr)}</div>` : ''}`;
   }
 }
 
@@ -1390,6 +1505,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (act === 'spectateLast') netJoinRoom(NET.lastCode, true);
     if (act === 'start') netHostStartGame();
+    if (act === 'hop-duel') netHopTo('duel');
     if (act === 'leave') netLeaveRequested();
     if (act === 'retry') netRetry();
     if (act === 'cancel') netRetry();
@@ -1408,8 +1524,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (startPick && typeof gamePickHtml === 'function') startPick.innerHTML = gamePickHtml('original', 'start');
 
   // 듀얼 쪽에서 "스플렌더 오리지널"을 골라 넘어왔으면 그 화면(싱글/온라인 로비)부터 연다.
+  // 다른 게임에서 방을 그대로 두고 넘어왔으면(?hop=host|guest&room=코드) 같은 코드로 방을 다시 열거나 다시 들어간다.
+  const hop = typeof roomHopIncoming === 'function' ? roomHopIncoming() : null;
   const incoming = typeof gamePickIncomingMode === 'function' ? gamePickIncomingMode() : null;
   if (incoming) appStart(incoming);
+  if (hop) netStartHop(hop);
 
   updateModeTabs();
 

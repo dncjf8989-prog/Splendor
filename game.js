@@ -603,6 +603,7 @@ function render() {
   // 다 그린 뒤에 띄워야 출발점과 도착점의 위치가 맞는다
   if (typeof animMaybePlay === 'function') animMaybePlay();
   renderModal();
+  if (typeof netOnRender === 'function') netOnRender();
 }
 
 function renderBanner() {
@@ -880,6 +881,10 @@ function resultModalHtml() {
   const again = canRestart
     ? `<button class="result-primary" data-result="again">${againLabel}</button>`
     : '<button class="result-primary" disabled>방장을 기다리는 중</button>';
+  // 온라인 방장이면 방을 그대로 두고 다른 게임으로 바꿀 수 있다 (듀얼은 2명이고 관전이 없어서 막힐 때도 있다)
+  const hop = online && typeof netCanHop === 'function' && netCanHop() && !netHopBlocked()
+    ? `<button data-result="hop">${GAMEPICK.duel.name}(으)로 바꾸기</button>`
+    : '';
 
   return `
     <h3 class="result-title">게임 종료</h3>
@@ -890,6 +895,7 @@ function resultModalHtml() {
     </table>
     <div class="result-actions">
       ${again}
+      ${hop}
       <button data-result="close">닫기</button>
     </div>`;
 }
@@ -992,6 +998,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (resultBtn) {
       // 재대결은 새 판이 시작되며 팝업이 저절로 닫힌다(gameOver가 풀린다).
       if (resultBtn.dataset.result === 'again') onNewGameClick();
+      else if (resultBtn.dataset.result === 'hop') netHopTo('duel');
       else closeResultModal();
     }
   });
