@@ -140,7 +140,9 @@ function duelNewGame(opts) {
     turn: start,
     turnNo: 1,
     mainDone: false, // 이번 턴의 필수 행동을 했는가
-    extra: false, // 카드 능력으로 한 번 더 두는가
+    extra: false, // 카드 능력으로 한 번 더 두는가 (이번 차례가 끝나면 같은 사람이 다시 둔다)
+    extraTurn: false, // 지금 두는 차례가 "한 번 더"로 얻은 추가 턴인가 (화면에 알리려는 표시)
+    fx: [], // 이번 행동으로 능력이 일으킨 일들. 화면이 "방금 일어난 일"로 보여 준다. 다음 행동이 오면 비운다.
     board: new Array(DUEL.SIZE * DUEL.SIZE).fill(null),
     bag,
     decks,
@@ -183,6 +185,12 @@ function duelName(state, seat) {
 function duelLog(state, msg) {
   state.log.unshift(msg);
   if (state.log.length > DUEL.LOG_MAX) state.log.length = DUEL.LOG_MAX;
+}
+
+// 능력이 일으킨 일을 남긴다. 상대에게 숨길 것이 없다 (토큰 종류는 모두 공개).
+function duelFx(state, ev) {
+  if (!Array.isArray(state.fx)) state.fx = [];
+  state.fx.push(ev);
 }
 
 function duelNote(state, seat, kind, extra) {
@@ -382,22 +390,34 @@ function duelApply(state, seat, action, rng) {
   if (action.t === 'choose') return duelFail('지금은 고를 것이 없습니다.');
   if (seat !== state.turn) return duelFail('내 차례가 아닙니다.');
 
+  // 새 행동이면 지난 행동의 "방금 일어난 일"을 비운다. 실패한 행동은 상태를 건드리지 않으므로 되돌린다.
+  const prevFx = state.fx;
+  state.fx = [];
+  let res;
   switch (action.t) {
     case 'priv':
-      return duelActPrivilege(state, seat, action);
+      res = duelActPrivilege(state, seat, action);
+      break;
     case 'replenish':
-      return duelActReplenish(state, seat, r);
+      res = duelActReplenish(state, seat, r);
+      break;
     case 'take':
-      return duelActTake(state, seat, action, r);
+      res = duelActTake(state, seat, action, r);
+      break;
     case 'reserve':
-      return duelActReserve(state, seat, action, r);
+      res = duelActReserve(state, seat, action, r);
+      break;
     case 'buy':
-      return duelActBuy(state, seat, action, r);
+      res = duelActBuy(state, seat, action, r);
+      break;
     case 'pass':
-      return duelActPass(state, seat, r);
+      res = duelActPass(state, seat, r);
+      break;
     default:
-      return duelFail('알 수 없는 행동입니다.');
+      res = duelFail('알 수 없는 행동입니다.');
   }
+  if (!res.ok) state.fx = prevFx;
+  return res;
 }
 
 function duelActPrivilege(state, seat, a) {
@@ -632,9 +652,11 @@ function duelRunPower(state, seat, power, color, rng) {
   if (power === 'replay') {
     state.extra = true;
     duelLog(state, `${duelName(state, seat)}이(가) 한 번 더 둡니다.`);
+    duelFx(state, { k: 'replay', seat });
   } else if (power === 'scroll') {
     const got = duelGainScroll(state, seat);
     if (got) duelLog(state, `${duelName(state, seat)}이(가) 특권을 받았습니다.`);
+    duelFx(state, { k: 'scroll', seat, got });
   } else if (power === 'token') {
     if (!color) return;
     const spots = [];
@@ -645,17 +667,23 @@ function duelRunPower(state, seat, power, color, rng) {
       state.board[spots[0]] = null;
       p.tokens[color] += 1;
       duelLog(state, `${duelName(state, seat)}이(가) 판에서 ${DUEL_COLOR_LABEL[color]}을(를) 가져왔습니다.`);
+      duelFx(state, { k: 'token', seat, color, got: true });
     } else if (spots.length > 1) {
       state.choice = { type: 'pick', seat, color, options: spots };
+    } else {
+      duelFx(state, { k: 'token', seat, color, got: false }); // 판에 그 색이 없어 아무 일도 없다
     }
   } else if (power === 'steal') {
     const types = DUEL.TOKEN_TYPES.filter((t) => t !== 'gold' && opp.tokens[t] > 0);
     if (types.length === 1) {
       opp.tokens[types[0]] -= 1;
       p.tokens[types[0]] += 1;
-      duelLog(state, `${duelName(state, seat)}이(가) 상대의 ${DUEL_COLOR_LABEL[types[0]]}을(를) 가져왔습니다.`);
+      duelLog(state, `${duelName(state, seat)}이(가) 상대의 ${DUEL_COLOR_LABEL[types[0]]}을(를) 빼앗았습니다.`);
+      duelFx(state, { k: 'steal', seat, type: types[0], got: true });
     } else if (types.length > 1) {
       state.choice = { type: 'steal', seat, options: types };
+    } else {
+      duelFx(state, { k: 'steal', seat, type: null, got: false }); // 빼앗을 토큰이 없다
     }
   }
 }
@@ -689,11 +717,13 @@ function duelWin(state, seat, kind, color) {
 function duelEndTurn(state) {
   if (state.extra) {
     state.extra = false;
+    state.extraTurn = true; // 같은 사람이 이어서 두는 추가 턴
     state.mainDone = false;
     state.turnNo += 1;
     return;
   }
   state.turn = 1 - state.turn;
+  state.extraTurn = false;
   state.mainDone = false;
   state.turnNo += 1;
 }
@@ -722,12 +752,14 @@ function duelChoose(state, seat, a, rng) {
     if (!ch.options.includes(a.type) || opp.tokens[a.type] < 1) return duelFail('가져올 수 없는 토큰입니다.');
     opp.tokens[a.type] -= 1;
     p.tokens[a.type] += 1;
-    duelLog(state, `${duelName(state, seat)}이(가) 상대의 ${DUEL_COLOR_LABEL[a.type]}을(를) 가져왔습니다.`);
+    duelLog(state, `${duelName(state, seat)}이(가) 상대의 ${DUEL_COLOR_LABEL[a.type]}을(를) 빼앗았습니다.`);
+    duelFx(state, { k: 'steal', seat, type: a.type, got: true });
   } else if (ch.type === 'pick') {
     if (!ch.options.includes(a.pos) || state.board[a.pos] !== ch.color) return duelFail('가져올 수 없는 칸입니다.');
     state.board[a.pos] = null;
     p.tokens[ch.color] += 1;
     duelLog(state, `${duelName(state, seat)}이(가) 판에서 ${DUEL_COLOR_LABEL[ch.color]}을(를) 가져왔습니다.`);
+    duelFx(state, { k: 'token', seat, color: ch.color, got: true });
   } else if (ch.type === 'discard') {
     const list = a.discard;
     if (!Array.isArray(list) || list.length !== ch.n) return duelFail(`${ch.n}개를 골라야 합니다.`);

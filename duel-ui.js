@@ -271,10 +271,72 @@ function dBannerText(v) {
     if (v.choice.seat !== DAPP.seat) return `${dEsc(opp.name)}이(가) 선택하는 중입니다.`;
     return { wild: '색상 선택 카드의 색을 고르세요.', royal: '가져올 왕실 카드를 고르세요.', steal: '상대에게서 가져올 토큰을 고르세요.', pick: '가져올 칸을 판에서 고르세요. (점선 표시)', discard: `토큰이 ${DUEL.TOKEN_MAX}개를 넘었습니다. ${v.choice.n}개를 버리세요.` }[v.choice.type] || '선택하세요.';
   }
-  if (v.turn !== DAPP.seat) return DAPP.mode === 'single' ? 'AI가 생각하는 중입니다...' : `${dEsc(opp.name)}(상대방)의 차례를 기다리는 중입니다.`;
+  if (v.turn !== DAPP.seat) {
+    if (v.extraTurn) return DAPP.mode === 'single' ? 'AI가 한 번 더 두는 중입니다... (추가 턴)' : `${dEsc(opp.name)}(상대방)이 한 번 더 두는 중입니다. (추가 턴)`;
+    return DAPP.mode === 'single' ? 'AI가 생각하는 중입니다...' : `${dEsc(opp.name)}(상대방)의 차례를 기다리는 중입니다.`;
+  }
   if (v.mainDone) return '마무리하는 중입니다.';
   if (DAPP.priv) return '특권을 쓸 칸을 고르세요. (금 제외)';
+  if (v.extraTurn) return '한 번 더! 당신의 차례가 이어집니다. (추가 턴 — 필수 행동을 한 번 더 합니다)';
   return `당신의 차례입니다. (목표: 점수 ${DUEL.WIN_POINTS}점 · 왕관 ${DUEL.WIN_CROWNS}개 · 한 색 ${DUEL.WIN_COLOR}점)`;
+}
+
+// 능력(한 번 더, 빼앗기, 특권, 보석)이 일으킨 일을 "방금 일어난 일"로 바로 보여 준다.
+// 다음 행동이 오면 엔진이 비우므로, 상대의 능력은 내 차례 내내 보이고 내가 두면 사라진다.
+function dFxLines(v) {
+  const seat = DAPP.seat;
+  const opp = v.players[1 - seat];
+  const oppName = DAPP.mode === 'single' ? 'AI' : dEsc(opp.name || '상대');
+  const out = [];
+  (Array.isArray(v.fx) ? v.fx : []).forEach((e) => {
+    const mine = e.seat === seat;
+    const who = mine ? '내가' : `${oppName}이(가)`;
+    if (e.k === 'replay') {
+      out.push(['한 번 더', mine
+        ? '내가 <b>한 번 더</b> 둡니다. 상대에게 차례가 넘어가지 않고, 이어서 내가 다시 둡니다.'
+        : `${oppName}이(가) <b>한 번 더</b> 둡니다. 아직 내 차례가 아닙니다. ${oppName}이(가) 한 번 더 둔 뒤에 내 차례가 옵니다.`]);
+    } else if (e.k === 'steal') {
+      if (!e.got) out.push(['빼앗기', '빼앗을 토큰이 없어서 아무 일도 일어나지 않았습니다. (금은 빼앗을 수 없습니다)']);
+      else out.push(['빼앗기', mine ? `내가 ${oppName}의 <b>${DUEL_COLOR_LABEL[e.type]}</b> 1개를 빼앗았습니다.` : `${oppName}이(가) 내 <b>${DUEL_COLOR_LABEL[e.type]}</b> 1개를 빼앗았습니다.`]);
+    } else if (e.k === 'scroll') {
+      out.push(['특권', e.got ? `${who} 특권 두루마리를 1장 받았습니다.` : '받을 특권 두루마리가 없어서 받지 못했습니다.']);
+    } else if (e.k === 'token') {
+      out.push(['보석', e.got ? `${who} 판에서 <b>${DUEL_COLOR_LABEL[e.color]}</b> 1개를 가져왔습니다.` : `판에 ${DUEL_COLOR_LABEL[e.color]} 보석이 없어서 가져오지 못했습니다.`]);
+    }
+  });
+  return out;
+}
+
+function dFxNextLine(v) {
+  if (v.over) return '';
+  const opp = v.players[1 - DAPP.seat];
+  const oppName = DAPP.mode === 'single' ? 'AI' : dEsc(opp.name || '상대');
+  if (v.choice) return v.choice.seat === DAPP.seat ? '지금 선택을 마쳐야 합니다.' : `${oppName}이(가) 선택하는 중입니다.`;
+  const extra = v.extraTurn ? ' (추가 턴)' : '';
+  return v.turn === DAPP.seat ? `지금은 <b>내 차례</b>입니다.${extra}` : `지금은 <b>${oppName} 차례</b>입니다.${extra}`;
+}
+
+function dRenderNotice(v) {
+  const el = document.getElementById('dNotice');
+  if (!el) return;
+  const lines = v ? dFxLines(v) : [];
+  if (!lines.length) {
+    el.hidden = true;
+    el.innerHTML = '';
+    DAPP.noticeSig = null;
+    return;
+  }
+  const next = dFxNextLine(v);
+  el.innerHTML = lines.map(([tag, text]) => `<div class="d-fx-line"><span class="d-fx-tag">${tag}</span>${text}</div>`).join('') + (next ? `<div class="d-fx-next">→ ${next}</div>` : '');
+  el.hidden = false;
+  // 새 일이 생겼을 때만 한 번 반짝여 눈에 띄게 한다
+  const sig = `${v.gameId}:${v.actionNo}:${lines.length}`;
+  if (sig !== DAPP.noticeSig) {
+    DAPP.noticeSig = sig;
+    el.classList.remove('d-pop');
+    void el.offsetWidth;
+    el.classList.add('d-pop');
+  }
 }
 
 function dRenderBanner() {
@@ -436,6 +498,7 @@ function dRender() {
   if (logEl) logEl.hidden = !v;
   if (!v) {
     if (game) game.hidden = true;
+    dRenderNotice(null);
     if (DAPP.hooks.renderChat) DAPP.hooks.renderChat();
     dRenderModal(null);
     if (typeof dHelpRender === 'function') dHelpRender(null);
@@ -443,6 +506,7 @@ function dRender() {
   }
   if (game) game.hidden = false;
   dRenderBanner();
+  dRenderNotice(v);
   document.getElementById('dMe').innerHTML = dPanelHtml(v, DAPP.seat);
   document.getElementById('dOpp').innerHTML = dPanelHtml(v, 1 - DAPP.seat);
   document.getElementById('dRoyals').innerHTML = dRoyalsHtml(v);
