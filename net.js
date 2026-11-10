@@ -51,6 +51,9 @@ const NET = {
   hop: null, // 게임을 바꿔 넘어온 직후의 방 이동 정보 { role, code, at }
   hopTimer: null,
   hopping: null, // 방장이 지금 바꾸러 가는 게임 (넘어가기 직전까지만 있다)
+
+  // ---- 선공 번갈아 ----
+  lastFirst: null, // 방장: 지난 판의 선공 자리와 그때의 두 사람 { seat, key }. 방이 닫히면 지운다
 };
 // game.js는 window.NET으로 존재 여부를 확인하므로 전역 객체에 명시적으로 노출한다.
 // (top-level const는 window의 프로퍼티가 되지 않는다.)
@@ -443,6 +446,7 @@ function netCreateRoom(fixedCode) {
   NET.seat = 0;
   NET.links = [];
   NET.opponents = [];
+  NET.lastFirst = null; // 새 방이다. 첫 판의 선공은 무작위
   NET.spectator = false;
   NET.watchers = [];
   NET.pending = [];
@@ -609,19 +613,37 @@ function netRoomReady() {
   );
 }
 
+// 선공을 정한다. 방장이 정해서 상태에 담아 전원에게 알리므로 모두가 같은 선공을 본다.
+//  - 2인: 방의 첫 판만 무작위. 같은 상대와 이어서 두는 재대결에서는 지난 판의 후공이 선공을 맡는다
+//    (한쪽만 계속 선공이 되는 일을 막는다). 상대가 바뀌면 다시 무작위로 뽑는다.
+//  - 3~4인: 매 판 무작위.
+function netPickFirstSeat() {
+  const n = NET.roomSize;
+  const key = [netMyProfile().id].concat(NET.links.map((l) => (l.profile && l.profile.id) || '')).join('|');
+  const last = NET.lastFirst;
+  let seat = Math.floor(Math.random() * n);
+  let alternated = false;
+  if (n === 2 && last && last.key === key && (last.seat === 0 || last.seat === 1)) {
+    seat = 1 - last.seat;
+    alternated = true;
+  }
+  NET.lastFirst = n === 2 ? { seat, key } : null;
+  return { seat, alternated };
+}
+
 function netHostStartGame() {
   if (!netRoomReady()) {
     log('아직 인원이 다 모이지 않았습니다.');
     renderNetPanel();
     return;
   }
-  // 선공은 매 판 무작위로 정한다. 방장이 뽑아서 상태에 담아 전원에게 알리므로
-  // 모두가 같은 선공을 본다 (재대결 때도 다시 뽑는다).
-  newGame(NET.roomSize, Math.floor(Math.random() * NET.roomSize));
+  const pick = netPickFirstSeat();
+  newGame(NET.roomSize, pick.seat);
   NET.links.forEach((link) => {
     if (link.profile && G.players[link.seat]) G.players[link.seat].name = link.profile.name;
   });
   logFirstPlayer();
+  if (pick.alternated) log('같은 상대와 이어서 두는 판이라 지난 판의 후공이 선공을 맡습니다.');
   if (typeof replayCapture === 'function') replayCapture(); // 한 수씩 기록: 선공 문장까지 들어간 시작 모습
   NET.status = 'active';
   chatSystem('대전이 시작되었습니다.');
@@ -1032,6 +1054,7 @@ function netCleanupPeer(delayClose) {
   NET.role = null;
   NET.roomCode = null;
   NET.seat = null;
+  NET.lastFirst = null;
   NET.opponents = [];
   NET.lobby = [];
   NET.spectator = false;

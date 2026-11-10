@@ -329,7 +329,8 @@ function statsRecentHtml(f) {
   const streakText = streak.n >= 2 ? ` · 지금 <b class="${streak.r === 'w' ? 'stats-w' : 'stats-l'}">${streak.n}연${streak.r === 'w' ? '승' : '패'}</b>` : '';
   const word = { w: '승', l: '패', d: '무' };
 
-  const strip = rows.map((r) => `<span class="rec-dot ${r.r}" title="${word[r.r]}">${word[r.r]}</span>`).join('');
+  // 오래된 판이 왼쪽, 가장 최근 판이 오른쪽 (표는 위가 최근)
+  const strip = rows.slice().reverse().map((r) => `<span class="rec-dot ${r.r}" title="${word[r.r]}">${word[r.r]}</span>`).join('');
 
   const body = rows
     .map((r) => {
@@ -349,7 +350,7 @@ function statsRecentHtml(f) {
 
   return `<div class="stats-sub rec-summary">최근 ${rows.length}경기 <b class="stats-w">${cnt.w}승</b> <b class="stats-l">${cnt.l}패</b>${cnt.d ? ` ${cnt.d}무` : ''} · 승률 ${rate}%${streakText}</div>
     <div class="rec-strip">${strip}</div>
-    <div class="stats-note rec-order">왼쪽이 가장 최근입니다. 점수는 내 점수 : 상대 중 가장 높은 점수입니다.</div>
+    <div class="stats-note rec-order">오른쪽 칸이 가장 최근입니다. 점수는 내 점수 : 상대 중 가장 높은 점수입니다.</div>
     <table class="stats-table rec-table"><tbody>${body}</tbody></table>`;
 }
 
