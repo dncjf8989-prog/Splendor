@@ -216,11 +216,6 @@ function statsRecordAbandoned(result, leaverId, force) {
   if (!continues && typeof dbGameRecordAbandoned === 'function') {
     boardSaveGame(dbGameRecordAbandoned(leaverId));
   }
-  // 한 수씩 기록도 같은 때에 남긴다 (남은 사람끼리 이어 가는 판이면 끝까지 둔 뒤에 남긴다)
-  if (!continues && typeof replayFinish === 'function') {
-    if (typeof replayCapture === 'function') replayCapture();
-    replayFinish({ ab: 1, leaverId });
-  }
   renderStatsPanel();
   return true;
 }
