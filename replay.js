@@ -11,8 +11,11 @@
 // 둘 다 replayCapture() 를 부른다. 같은 모습이 또 오면(재전송 등) 건너뛴다.
 // 상대의 예약 카드는 내용을 모른다(장수만 안다). 내 예약 카드는 내가 올린 기록에만 들어 있다.
 //
-// 저장: 이 기기(localStorage) 와 서버(/replays/판번호). 서버는 보안 규칙에 replays 가 열려 있어야 올라간다
-// (README 참고). 안 열려 있어도 게임과 이 기기의 기록은 그대로 돌아간다.
+// 저장: 이 기기(localStorage). 서버(/replays/판번호)는 따로 켠 기기에서만 올린다. 서버는 보안 규칙에
+// replays 가 열려 있어야 올라간다 (README 참고). 안 열려 있어도 게임과 이 기기의 기록은 그대로 돌아간다.
+//
+// 공식 기능이 아니라 켠 사람만 쓰는 도구다. 기본은 꺼져 있어서 켜지 않은 기기에서는 버튼도 안 보이고
+// 기록도 하지 않는다. 켜는 법은 replayMode() 아래에 적었다.
 
 const RP_GEMS = ['white', 'blue', 'green', 'red', 'black'];
 const RP_TOKENS = ['gold'].concat(RP_GEMS); // 토큰은 이 순서의 숫자 6개로 적는다
@@ -22,6 +25,41 @@ const RP_LOCAL_KEY = 'splendorReplays';
 const RP_LOCAL_MAX = 20; // 이 기기에 남겨 두는 판 수
 const RP_MAX_BYTES = 120 * 1024; // 한 판 기록의 상한 (넘으면 올리지 않는다)
 const RP_MAX_FRAMES = 600;
+const RP_FLAG_KEY = 'splendorReplayOn';
+
+// ---------------------------------------------------------------------------
+// 켜고 끄기. 이 기기(브라우저)마다 따로다.
+//   주소 뒤에 ?replayon=1  이 기기에만 기록하고 보기 (버튼이 나타난다)
+//   주소 뒤에 ?replayon=2  1 에 더해 온라인 판을 서버(/replays)에도 올린다
+//   주소 뒤에 ?replayon=0  끈다 (이미 남은 기록은 지우지 않는다)
+// 한 번 열면 저장돼서 다음부터는 주소를 안 붙여도 된다. 읽자마자 주소창에서는 지운다.
+function replayMode() {
+  try {
+    const v = localStorage.getItem(RP_FLAG_KEY);
+    return v === '2' ? 2 : v === '1' ? 1 : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+function replayEnabled() {
+  return replayMode() >= 1;
+}
+
+function rpApplySwitch() {
+  try {
+    const u = new URL(location.href);
+    const v = u.searchParams.get('replayon');
+    if (v === null) return;
+    if (v === '1' || v === '2') localStorage.setItem(RP_FLAG_KEY, v);
+    else if (v === '0') localStorage.removeItem(RP_FLAG_KEY);
+    u.searchParams.delete('replayon');
+    history.replaceState(null, '', u.pathname + u.search + u.hash);
+  } catch (e) {
+    /* noop */
+  }
+}
+rpApplySwitch();
 
 // ---------------------------------------------------------------------------
 // 카드를 짧은 글자로: 흰 1점 카드가 초록 4를 요구하면 "w1:g4"
@@ -157,6 +195,7 @@ function rpNewLines(g) {
 // 지금 판의 모습을 한 순간으로 남긴다. 변한 게 없으면 건너뛴다. 기록 때문에 게임이 멈추면 안 되므로 오류는 삼킨다.
 function replayCapture() {
   try {
+    if (!replayEnabled()) return;
     if (typeof G === 'undefined' || !G || !G.gameId || !Array.isArray(G.players) || !G.tiers) return;
     if (typeof netIsSpectator === 'function' && netIsSpectator()) return; // 관전자는 기록하지 않는다
     if (!RP.rec || RP.rec.id !== G.gameId) rpStart(G);
@@ -188,6 +227,7 @@ function replayCapture() {
 // render() 끝에서 부른다. 판이 끝난 것을 처음 보면 마지막 모습을 남기고 저장한다.
 function replayOnRender() {
   try {
+    if (!replayEnabled()) return;
     if (typeof G === 'undefined' || !G || !G.gameOver || !G.gameId) return;
     if (RP.savedFor === G.gameId) return;
     replayCapture();
@@ -252,14 +292,15 @@ function rpBuildRecord(opts) {
 // 판이 끝났을 때(또는 중간에 끝났을 때) 저장한다.
 function replayFinish(opts) {
   try {
+    if (!replayEnabled()) return null;
     if (typeof G === 'undefined' || !G || !RP.rec || RP.rec.id !== G.gameId || !RP.full.length) return null;
     if (typeof netIsSpectator === 'function' && netIsSpectator()) return null;
     if (RP.savedFor === G.gameId) return null;
     RP.savedFor = G.gameId;
     const rec = rpBuildRecord(opts);
     rpLocalAdd(rec);
-    // 서버에는 온라인 판만 올린다 (혼자 연습한 판은 이 기기에만 남긴다)
-    if (rec.on) rpSaveDb(rec);
+    // 서버에는 따로 켠 기기의 온라인 판만 올린다 (혼자 연습한 판과 기본 설정은 이 기기에만 남긴다)
+    if (rec.on && replayMode() >= 2) rpSaveDb(rec);
     if (typeof replayRefreshButton === 'function') replayRefreshButton();
     return rec;
   } catch (e) {
@@ -606,6 +647,7 @@ function replayOpen(rec, idx) {
 
 // 방금 끝난 판을 바로 연다 (결과 창의 "복기" 버튼)
 function replayOpenCurrent() {
+  if (!replayEnabled()) return undefined;
   replayCapture();
   const rec = RP.rec && G && RP.rec.id === G.gameId && RP.full.length ? rpBuildRecord({ ab: G.gameOver ? 0 : 1 }) : null;
   if (!rec) {
@@ -767,11 +809,14 @@ function replayRefreshButton() {
 
 document.addEventListener('DOMContentLoaded', () => {
   const b = document.getElementById('replayBtn');
-  if (b) b.addEventListener('click', replayOpenList);
+  if (b) {
+    b.hidden = !replayEnabled(); // 켜지 않은 기기에는 버튼이 없다
+    b.addEventListener('click', replayOpenList);
+  }
   replayRefreshButton();
   // 주소로 판 번호를 주면 서버에서 불러와 연다 (?replay=판번호)
   try {
-    const id = new URLSearchParams(location.search).get('replay');
+    const id = replayEnabled() ? new URLSearchParams(location.search).get('replay') : null;
     if (id) {
       rpLoadDb(id)
         .then((rec) => replayOpen(rec, 0))

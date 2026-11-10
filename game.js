@@ -900,7 +900,7 @@ function resultModalHtml() {
     <div class="result-actions">
       ${again}
       ${hop}
-      <button data-result="replay">복기</button>
+      ${typeof replayEnabled === 'function' && replayEnabled() ? '<button data-result="replay">복기</button>' : ''}
       <button data-result="close">닫기</button>
     </div>`;
 }
