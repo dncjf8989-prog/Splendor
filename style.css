@@ -1251,6 +1251,55 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .room-hop { margin: 4px 0 10px; }
 .room-hop .net-sub { margin-top: 6px; }
 
+/* ============ 복기 (replay.js) ============ */
+#replayOverlay { position: fixed; inset: 0; background: var(--overlay); display: flex; align-items: flex-start; justify-content: center; padding: 12px; z-index: 70; overflow-y: auto; }
+#replayOverlay.hidden { display: none; }
+#replayBox { background: var(--modal-bg); border: 1px solid var(--border); border-radius: 12px; width: min(1100px, 100%); box-shadow: 0 14px 40px var(--modal-shadow); }
+#replayHeader { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--modal-bg); z-index: 2; border-radius: 12px 12px 0 0; }
+.rp-head-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+#replayBody { padding: 12px 14px 16px; }
+.rp-sub { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
+.rp-chart svg { width: 100%; height: 110px; display: block; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.rp-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted); margin: 4px 0 8px; }
+.rp-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.rp-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
+.rp-nav input[type=range] { flex: 1 1 160px; min-width: 120px; }
+.rp-pos { font-variant-numeric: tabular-nums; min-width: 64px; text-align: center; font-weight: 700; }
+.rp-step { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 14px; min-height: 40px; margin-bottom: 10px; line-height: 1.5; }
+.rp-stage { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 12px; align-items: start; }
+.rp-nobles { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
+.rp-table .tier { margin-bottom: 8px; }
+.rp-players { display: flex; flex-direction: column; gap: 8px; }
+.rp-players .player-panel { margin: 0; }
+.rp-sum { width: 100%; border-collapse: collapse; font-size: 12px; margin: 12px 0 8px; }
+.rp-sum th, .rp-sum td { border: 1px solid var(--border); padding: 4px 6px; text-align: center; }
+.rp-moves { list-style: none; margin: 8px 0 0; padding: 0; max-height: 280px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; position: relative; }
+.rp-move { display: flex; gap: 8px; align-items: baseline; padding: 5px 8px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 13px; }
+.rp-move:last-child { border-bottom: 0; }
+.rp-move:hover { background: var(--bg); }
+.rp-move.on { background: var(--accent); color: var(--accent-fg); }
+.rp-no { min-width: 26px; text-align: right; font-variant-numeric: tabular-nums; opacity: 0.7; }
+.rp-who { font-weight: 700; min-width: 60px; }
+.rp-kind { font-size: 11px; border: 1px solid currentColor; border-radius: 999px; padding: 0 6px; opacity: 0.8; white-space: nowrap; }
+.rp-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.rp-gain { font-weight: 700; white-space: nowrap; }
+.rp-res { font-weight: 800; }
+.rp-res-w { color: #2e7d4f; }
+.rp-res-l { color: #b0453a; }
+.rp-list { list-style: none; margin: 0 0 12px; padding: 0; }
+.rp-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+.rp-item-sub { font-size: 12px; color: var(--muted); }
+.rp-empty { padding: 18px 0; color: var(--muted); font-size: 14px; }
+.rp-tools { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; font-size: 13px; }
+.rp-tool { display: flex; flex-direction: column; gap: 4px; }
+.rp-tool label { color: var(--muted); font-size: 12px; }
+.rp-tool input[type=text] { padding: 6px 8px; margin-right: 6px; width: min(260px, 60%); }
+.rp-msg { margin-top: 10px; font-size: 13px; color: var(--muted); }
+@media (max-width: 860px) {
+  .rp-stage { grid-template-columns: 1fr; }
+  .rp-table .tier-cards { flex-wrap: wrap; justify-content: center; }
+}
+
 /* ============ 저채도 모드 ============
    사무실에서 멀리서 보면 눈에 띄는 건 넓은 색면과 둥근 모서리다. 그 둘을
    걷어내고 표처럼 보이게 한다. 보석 색은 이 게임의 정보라 지우지 않고

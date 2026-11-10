@@ -117,6 +117,7 @@ function newGame(playerCount, startIndex) {
 
   log(`${count}인 게임을 시작합니다. (목표 ${rules.winPoints}점)`);
   if (isSingle) logFirstPlayer(); // 온라인은 이름을 채운 뒤 방장이 따로 남긴다
+  if (typeof replayCapture === 'function') replayCapture(); // 한 수씩 기록: 시작 모습
   render();
   // 선공이 AI면 곧바로 두게 한다. (첫 턴은 notifyNet을 거치지 않는다)
   if (typeof aiScheduleTurn === 'function') aiScheduleTurn();
@@ -159,6 +160,7 @@ function totalTokens(player) {
 }
 
 function log(msg) {
+  G.logN = (G.logN || 0) + 1; // 지금까지 남긴 줄 수. 한 수가 남긴 문장을 나중에 가려내는 데 쓴다 (replay.js)
   G.logs.unshift(msg);
   if (G.logs.length > 60) G.logs.length = 60;
 }
@@ -534,6 +536,7 @@ function finishTurnFlow(player) {
 // 온라인 대전 중이면 턴이 끝날 때마다 상대방에게 최신 상태를 전송하고,
 // 싱글 플레이 중이면 AI 턴으로 넘어왔는지 확인해 AI를 움직인다.
 function notifyNet() {
+  if (typeof replayCapture === 'function') replayCapture(); // 한 수씩 기록: 내 쪽에서 턴이 끝났다
   if (window.NET && NET.mode === 'online' && typeof NET.commit === 'function') {
     NET.commit();
   }
@@ -593,6 +596,7 @@ function renderCardTile(card, opts) {
 function render() {
   if (!G) return;
   if (typeof maybeRecordResult === 'function') maybeRecordResult();
+  if (typeof replayOnRender === 'function') replayOnRender(); // 판이 끝났으면 한 수씩 기록을 저장한다
   renderBanner();
   renderNobles();
   renderBoard();
@@ -896,6 +900,7 @@ function resultModalHtml() {
     <div class="result-actions">
       ${again}
       ${hop}
+      <button data-result="replay">복기</button>
       <button data-result="close">닫기</button>
     </div>`;
 }
@@ -999,6 +1004,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // 재대결은 새 판이 시작되며 팝업이 저절로 닫힌다(gameOver가 풀린다).
       if (resultBtn.dataset.result === 'again') onNewGameClick();
       else if (resultBtn.dataset.result === 'hop') netHopTo('duel');
+      else if (resultBtn.dataset.result === 'replay') replayOpenCurrent();
       else closeResultModal();
     }
   });

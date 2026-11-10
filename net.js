@@ -232,6 +232,7 @@ function netSerializeState() {
     startIndex: G.startIndex,
     currentIndex: G.currentIndex,
     logs: G.logs.slice(0, 20),
+    logN: G.logN || 0,
     gameOver: G.gameOver,
     winnerText: G.winnerText,
     // 누가 어떤 카드를 가져갔는지. 받는 쪽에서 그 카드를 날려 보여준다.
@@ -260,6 +261,7 @@ function netApplyRemoteState(state) {
     discardState: null,
     nobleChoice: null,
     logs: state.logs || [],
+    logN: Number.isInteger(state.logN) ? state.logN : undefined, // 옛 버전 상대에게는 없다
     gameOver: !!state.gameOver,
     winnerText: state.winnerText || '',
     actionNo: state.actionNo || 0,
@@ -271,6 +273,7 @@ function netApplyRemoteState(state) {
   if (sameGame && prev && Number.isInteger(mine) && G.players[mine] && prev[mine]) {
     if (Array.isArray(prev[mine].reserved)) G.players[mine].reserved = prev[mine].reserved;
   }
+  if (typeof replayCapture === 'function') replayCapture(); // 한 수씩 기록: 상대가 둔 수
   render();
 }
 
@@ -619,6 +622,7 @@ function netHostStartGame() {
     if (link.profile && G.players[link.seat]) G.players[link.seat].name = link.profile.name;
   });
   logFirstPlayer();
+  if (typeof replayCapture === 'function') replayCapture(); // 한 수씩 기록: 선공 문장까지 들어간 시작 모습
   NET.status = 'active';
   chatSystem('대전이 시작되었습니다.');
   const profiles = netProfileList();
