@@ -90,6 +90,47 @@ function boardMyOpponents() {
   return Object.keys(by).map((k) => by[k]);
 }
 
+// ---- 내 최근 경기 ----
+// 서버 판 기록에서 내가 둔 판을 최신순으로 뽑는다. 오리지널만 센다 (듀얼은 duel-stats.js 가 따로).
+// filter: 'all' | '2' | '3' | '4' (전적 창의 인원 탭을 따른다)
+// 반환: [{ at, n, r('w'|'l'|'d'), ab(중도 종료), first(내가 선공이었나, 모르면 null),
+//          myScore, oppScore(상대 중 가장 높은 점수, 모르면 null), opp: [상대 이름들] }]
+function boardRecent(games, myId, filter, limit) {
+  const max = Number.isInteger(limit) && limit > 0 ? limit : 10;
+  const out = [];
+  (games || []).forEach((g) => {
+    if (!g || typeof g !== 'object' || g.k === 'duel' || !Array.isArray(g.p)) return;
+    if (filter && filter !== 'all' && String(g.n) !== String(filter)) return;
+    const mi = g.p.findIndex((x) => x && x.id === myId);
+    if (mi < 0) return;
+    const me = g.p[mi];
+    if (me.r !== 'w' && me.r !== 'l' && me.r !== 'd') return;
+    const others = g.p.filter((x, i) => i !== mi && x);
+    const score = (x) => (x && Number.isFinite(x.s) && x.s >= 0 ? x.s : null);
+    const oppScores = others.map(score).filter((v) => v !== null);
+    out.push({
+      at: Number.isFinite(g.at) ? g.at : 0,
+      n: g.p.length,
+      r: me.r,
+      ab: g.ab ? 1 : 0,
+      first: Number.isInteger(g.f) ? g.f === mi : null,
+      myScore: score(me),
+      oppScore: oppScores.length ? Math.max.apply(null, oppScores) : null,
+      opp: others.map((x) => (typeof x.name === 'string' && x.name.trim() ? x.name.trim().slice(0, 12) : '상대')),
+    });
+  });
+  out.sort((a, b) => b.at - a.at);
+  return out.slice(0, max);
+}
+
+// 가장 최근부터 이어진 같은 결과 (승 또는 패). 무승부는 흐름을 끊는다.
+function boardStreak(rows) {
+  if (!rows || !rows.length || (rows[0].r !== 'w' && rows[0].r !== 'l')) return { r: null, n: 0 };
+  let n = 0;
+  while (n < rows.length && rows[n].r === rows[0].r) n++;
+  return { r: rows[0].r, n };
+}
+
 // ---- 순위 매기기 ----
 function boardRowOf(p, filter) {
   const rec = statsSum(p.online, filter);

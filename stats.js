@@ -303,6 +303,56 @@ function statsRankingHtml(filter) {
     ${note ? `<div class="stats-note rank-note">${note}</div>` : ''}`;
 }
 
+// 내 최근 10경기. 랭킹과 같은 서버 판 기록에서 뽑는다 (인원 탭을 따른다).
+// 서버에 닿지 못했을 때는 보여줄 판이 없다: 이 브라우저에는 합계만 쌓이고 판 하나하나는 남지 않는다.
+const STATS_RECENT_N = 10;
+function statsRecentHtml(f) {
+  if (BOARD.status !== 'ok' || !Array.isArray(BOARD.rawGames)) {
+    const msg =
+      BOARD.status === 'loading'
+        ? '불러오는 중입니다...'
+        : BOARD.status === 'error'
+          ? '서버에 닿지 못해 최근 경기를 불러오지 못했습니다. 위의 새로고침을 눌러 보세요.'
+          : '이 창을 열면 불러옵니다.';
+    return `<div class="stats-empty-box stats-recent-empty">${msg}</div>`;
+  }
+  const rows = boardRecent(BOARD.rawGames, statsProfile().id, f, STATS_RECENT_N);
+  if (!rows.length) {
+    const what = f === 'all' ? '' : `${f}인 `;
+    return `<div class="stats-empty-box stats-recent-empty">${what}온라인 대전 기록이 아직 없습니다.</div>`;
+  }
+
+  const cnt = { w: 0, l: 0, d: 0 };
+  rows.forEach((r) => (cnt[r.r] += 1));
+  const rate = boardRateText((cnt.w / rows.length) * 100);
+  const streak = boardStreak(rows);
+  const streakText = streak.n >= 2 ? ` · 지금 <b class="${streak.r === 'w' ? 'stats-w' : 'stats-l'}">${streak.n}연${streak.r === 'w' ? '승' : '패'}</b>` : '';
+  const word = { w: '승', l: '패', d: '무' };
+
+  const strip = rows.map((r) => `<span class="rec-dot ${r.r}" title="${word[r.r]}">${word[r.r]}</span>`).join('');
+
+  const body = rows
+    .map((r) => {
+      const score = `${r.myScore == null ? '-' : r.myScore} : ${r.oppScore == null ? '-' : r.oppScore}`;
+      const note = r.ab ? '중도 종료' : r.first == null ? '' : r.first ? '선공' : '후공';
+      const resCls = r.r === 'w' ? 'stats-w' : r.r === 'l' ? 'stats-l' : '';
+      return `<tr>
+        <td class="rec-when">${boardAgo(r.at)}</td>
+        <td>${r.n}인</td>
+        <td class="stats-name">${escapeHtml(r.opp.join(', '))}</td>
+        <td class="rec-res ${resCls}">${word[r.r]}</td>
+        <td class="rec-score">${score}</td>
+        <td class="rec-note">${note}</td>
+      </tr>`;
+    })
+    .join('');
+
+  return `<div class="stats-sub rec-summary">최근 ${rows.length}경기 <b class="stats-w">${cnt.w}승</b> <b class="stats-l">${cnt.l}패</b>${cnt.d ? ` ${cnt.d}무` : ''} · 승률 ${rate}%${streakText}</div>
+    <div class="rec-strip">${strip}</div>
+    <div class="stats-note rec-order">왼쪽이 가장 최근입니다. 점수는 내 점수 : 상대 중 가장 높은 점수입니다.</div>
+    <table class="stats-table rec-table"><tbody>${body}</tbody></table>`;
+}
+
 // 불러오기 줄 (전체 랭킹)
 function statsGroupRowHtml() {
   let state = '';
@@ -425,6 +475,9 @@ function renderStatsPanel() {
       ${missNote}
       ${byCount}
     </div>
+
+    <div class="stats-section-label">최근 ${STATS_RECENT_N}경기<span class="stats-hint">내가 둔 온라인 대전${f === 'all' ? '' : `, ${f}인만`}</span></div>
+    ${statsRecentHtml(f)}
 
     <div class="stats-section-label">랭킹<span class="stats-hint">온라인 대전 기록만 셉니다</span></div>
     ${statsRankingHtml(f)}

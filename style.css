@@ -899,6 +899,35 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 .stats-chip strong { color: var(--text); }
 
+/* 내 최근 10경기 */
+.rec-summary { margin: 2px 0 8px; font-size: 13px; color: var(--text); }
+.rec-strip { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.rec-dot {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--muted);
+}
+.rec-dot.w { background: var(--gem-green); }
+.rec-dot.l { background: var(--gem-red); }
+.rec-dot.d { background: var(--panel); color: var(--muted); border: 1px solid var(--border); }
+.rec-order { margin-bottom: 6px; }
+.rec-table td { white-space: nowrap; }
+.rec-table .stats-name { white-space: normal; }
+.rec-when, .rec-note { font-size: 11px; color: var(--muted); }
+.rec-res { font-weight: 700; text-align: center; }
+.rec-score { text-align: right; color: var(--muted); }
+@media (max-width: 480px) {
+  .rec-table td { padding: 7px 3px; font-size: 12px; }
+}
+:root[data-quiet] .rec-dot.w { background: #5a7a5e; }
+:root[data-quiet] .rec-dot.l { background: #8e675f; }
+
 .stats-hint {
   margin-left: 6px;
   font-size: 11px;

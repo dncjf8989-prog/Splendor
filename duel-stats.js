@@ -159,9 +159,9 @@ function dStatsHtml() {
     html += `<div class="d-note" style="text-align:left;margin-top:6px">승률 순위는 ${D_MIN_GAMES}전 이상인 사람을 위에 둡니다.</div>`;
   }
 
-  const mine = games.filter((g) => g.p.some((x) => x.id === myId)).sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 8);
+  const mine = games.filter((g) => g.p.some((x) => x.id === myId)).sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 10);
   if (mine.length) {
-    html += '<div style="margin-top:14px"><b>최근 내 판</b></div><table class="d-rank-table"><thead><tr><th>때</th><th>상대</th><th>결과</th><th>점수</th><th>방식</th></tr></thead><tbody>';
+    html += '<div style="margin-top:14px"><b>최근 10경기</b> <span class="d-label">내가 둔 판, 최신순</span></div><table class="d-rank-table"><thead><tr><th>때</th><th>상대</th><th>결과</th><th>점수</th><th>방식</th></tr></thead><tbody>';
     mine.forEach((g) => {
       const mi = g.p.findIndex((x) => x.id === myId);
       const o = g.p[1 - mi];
